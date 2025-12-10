@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from datetime import timedelta
 
 from .models import Agent, AgentEvent, Simulation
@@ -36,6 +36,16 @@ def load_simulations() -> Dict[str, Simulation]:
         events=events,
     )
     return {simulation.simulation_id: simulation}
+
+
+def build_event_index(simulations: Dict[str, Simulation]) -> Dict[str, Tuple[str, AgentEvent]]:
+    """Create an event_id -> (simulation_id, event) map for O(1) lookups."""
+
+    index: Dict[str, Tuple[str, AgentEvent]] = {}
+    for sim_id, sim in simulations.items():
+        for evt in sim.events:
+            index[evt.event_id] = (sim_id, evt)
+    return index
 
 
 def build_causal_links(events: List[AgentEvent], lookback_seconds: float = 5.0) -> None:

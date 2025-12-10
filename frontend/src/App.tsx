@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Layer, Rect, Stage, Text, Arrow, Label, Tag, Group } from "react-konva";
-import { fetchAgents, fetchEvents } from "./api";
+import { fetchAgents, fetchEvents, fetchEventContext } from "./api";
 import { Agent, AgentEvent } from "./types";
 import { useViewport } from "./store/useViewport";
+import { useSelection } from "./store/useSelection";
 import {
   EVENT_COLORS,
   WORLDLINE_SPACING,
@@ -17,6 +18,8 @@ import {
   CANVAS_MARGIN,
 } from "./constants";
 import { threadOpacity } from "./threads";
+import { DetailPanel } from "./components/DetailPanel";
+import { blockOpacity, worldlineOpacity, threadOpacityFocused, buildHighlightIds } from "./focus";
 
 type PositionedEvent = {
   event: AgentEvent;
@@ -92,6 +95,7 @@ function App() {
   });
 
   const { scale, offset, setScale, setOffset } = useViewport();
+  const { selectedEventId, setSelectedEventId, clearSelection } = useSelection();
 
   const positioned = useMemo(() => layoutEvents(agents, events), [agents, events]);
   const positionedById = useMemo(() => mapPositioned(positioned), [positioned]);
@@ -138,6 +142,15 @@ function App() {
 
   const loading = agentsLoading || eventsLoading;
 
+  const {
+    data: eventContext,
+    isFetching: contextLoading,
+  } = useQuery({
+    queryKey: ["event-context", selectedEventId],
+    queryFn: () => fetchEventContext(selectedEventId as string),
+    enabled: !!selectedEventId,
+  });
+
   const { threads, branchCounts } = useMemo(() => {
     const lines: { from: PositionedEvent; to: PositionedEvent }[] = [];
     const counts: Record<string, number> = {};
@@ -154,6 +167,23 @@ function App() {
     });
     return { threads: lines, branchCounts: counts };
   }, [events, positionedById]);
+
+  const focus = useMemo(
+    () => buildHighlightIds(selectedEventId, eventContext),
+    [selectedEventId, eventContext]
+  );
+
+  const selectedEvent = selectedEventId ? positionedById[selectedEventId]?.event : undefined;
+
+  const handleStageClick = useCallback(
+    (e: any) => {
+      const stage = e.target.getStage();
+      if (e.target === stage) {
+        clearSelection();
+      }
+    },
+    [clearSelection]
+  );
 
   return (
     <div>
@@ -187,179 +217,235 @@ function App() {
         {loading ? (
           <div style={{ padding: 16 }}>Loading...</div>
         ) : (
-          <Stage
-            width={window.innerWidth}
-            height={window.innerHeight - 48}
-            x={offset.x}
-            y={offset.y}
-            scaleX={scale}
-            scaleY={scale}
-            draggable
-            onDragEnd={handleDragEnd}
-            onWheel={handleWheel}
-            style={{ background: "transparent" }}
-          >
-            <Layer listening={false}>
-              <Rect
-                x={backgroundX}
-                y={backgroundY}
-                width={backgroundWidth}
-                height={backgroundHeight}
-                perfectDrawEnabled={false}
-                sceneFunc={(ctx, shape) => {
-                  const w = shape.width();
-                  const h = shape.height();
-                  ctx.save();
-                  const gradient = ctx.createLinearGradient(0, 0, 0, h);
-                  gradient.addColorStop(0, "#0f182c");
-                  gradient.addColorStop(1, "#0b1224");
-                  ctx.fillStyle = gradient;
-                  ctx.fillRect(0, 0, w, h);
-                  ctx.beginPath();
-                  for (let gx = 0; gx <= w; gx += GRID_SIZE) {
-                    for (let gy = 0; gy <= h; gy += GRID_SIZE) {
-                      ctx.rect(
-                        gx - GRID_DOT_SIZE / 2,
-                        gy - GRID_DOT_SIZE / 2,
-                        GRID_DOT_SIZE,
-                        GRID_DOT_SIZE
-                      );
+          <>
+            <Stage
+              width={window.innerWidth}
+              height={window.innerHeight - 48}
+              x={offset.x}
+              y={offset.y}
+              scaleX={scale}
+              scaleY={scale}
+              draggable
+              onDragEnd={handleDragEnd}
+              onWheel={handleWheel}
+              onMouseDown={handleStageClick}
+              style={{ background: "transparent" }}
+            >
+              <Layer listening={false}>
+                <Rect
+                  x={backgroundX}
+                  y={backgroundY}
+                  width={backgroundWidth}
+                  height={backgroundHeight}
+                  perfectDrawEnabled={false}
+                  sceneFunc={(ctx, shape) => {
+                    const w = shape.width();
+                    const h = shape.height();
+                    ctx.save();
+                    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+                    gradient.addColorStop(0, "#0f182c");
+                    gradient.addColorStop(1, "#0b1224");
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.beginPath();
+                    for (let gx = 0; gx <= w; gx += GRID_SIZE) {
+                      for (let gy = 0; gy <= h; gy += GRID_SIZE) {
+                        ctx.rect(
+                          gx - GRID_DOT_SIZE / 2,
+                          gy - GRID_DOT_SIZE / 2,
+                          GRID_DOT_SIZE,
+                          GRID_DOT_SIZE
+                        );
+                      }
                     }
-                  }
-                  ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
-                  ctx.fill();
-                  ctx.restore();
-                }}
-              />
-            </Layer>
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+                    ctx.fill();
+                    ctx.restore();
+                  }}
+                />
+              </Layer>
 
-            <Layer>
-              {agents.map((agent, idx) => {
-                const color = agentColorById[agent.agent_id] ?? "#38bdf8";
-                const railCenter = 120 + idx * WORLDLINE_SPACING + BLOCK_WIDTH / 2;
-                return (
-                  <Group key={agent.agent_id}>
-                    <Rect
-                      x={railCenter - WORLDLINE_WIDTH / 2}
-                      y={-40}
-                      width={WORLDLINE_WIDTH}
-                      height={contentHeight + 60}
-                      cornerRadius={WORLDLINE_WIDTH}
-                      fill={withAlpha(color, 0.15)}
-                      stroke={withAlpha(color, 0.7)}
-                      strokeWidth={2}
-                      shadowColor={withAlpha(color, 0.5)}
-                      shadowBlur={18}
-                      shadowOpacity={0.6}
-                    />
-                    <Label x={railCenter - 40} y={-34} listening={false}>
-                      <Tag
-                        fill={withAlpha(color, 0.2)}
-                        stroke={withAlpha(color, 0.6)}
-                        strokeWidth={1}
+              <Layer>
+                {agents.map((agent, idx) => {
+                  const color = agentColorById[agent.agent_id] ?? "#38bdf8";
+                  const railCenter = 120 + idx * WORLDLINE_SPACING + BLOCK_WIDTH / 2;
+                  const railOpacity = worldlineOpacity(
+                    agent.agent_id,
+                    selectedEvent?.agent_id ?? null
+                  );
+                  return (
+                    <Group key={agent.agent_id}>
+                      <Rect
+                        x={railCenter - WORLDLINE_WIDTH / 2}
+                        y={-40}
+                        width={WORLDLINE_WIDTH}
+                        height={contentHeight + 60}
+                        cornerRadius={WORLDLINE_WIDTH}
+                        fill={withAlpha(color, 0.15)}
+                        stroke={withAlpha(color, 0.7)}
+                        strokeWidth={2}
+                        shadowColor={withAlpha(color, 0.5)}
+                        shadowBlur={18}
+                        shadowOpacity={0.6}
+                        opacity={railOpacity}
+                      />
+                      <Label x={railCenter - 40} y={-34} listening={false}>
+                        <Tag
+                          fill={withAlpha(color, 0.2)}
+                          stroke={withAlpha(color, 0.6)}
+                          strokeWidth={1}
+                          cornerRadius={12}
+                        />
+                        <Text
+                          text={agent.name}
+                          fontSize={12}
+                          fontStyle="700"
+                          fill="#E2E8F0"
+                          padding={8}
+                        />
+                      </Label>
+                    </Group>
+                  );
+                })}
+
+                {positioned.map((p) => {
+                  const baseColor =
+                    agentColorById[p.event.agent_id] ??
+                    EVENT_COLORS[p.event.event_type] ??
+                    "#3B82F6";
+                  const isSelected = p.event.event_id === selectedEventId;
+                  const blockAlpha = blockOpacity(p.event.event_id, focus);
+                  return (
+                    <Group
+                      key={p.event.event_id}
+                      onClick={() => setSelectedEventId(p.event.event_id)}
+                      listening
+                    >
+                      <Rect
+                        x={p.x}
+                        y={p.y}
+                        width={BLOCK_WIDTH}
+                        height={p.height}
                         cornerRadius={12}
+                        fillLinearGradientStartPoint={{ x: p.x, y: p.y }}
+                        fillLinearGradientEndPoint={{ x: p.x, y: p.y + p.height }}
+                        fillLinearGradientColorStops={[
+                          0,
+                          withAlpha(baseColor, 0.28),
+                          1,
+                          withAlpha(baseColor, 0.12),
+                        ]}
+                        stroke={lighten(baseColor, 30)}
+                        strokeWidth={2}
+                        shadowColor={withAlpha(baseColor, 0.45)}
+                        shadowBlur={14}
+                        shadowOpacity={0.7}
+                        opacity={blockAlpha}
                       />
                       <Text
-                        text={agent.name}
-                        fontSize={12}
-                        fontStyle="700"
-                        fill="#E2E8F0"
-                        padding={8}
+                        x={p.x + 12}
+                        y={p.y + 10}
+                        text={p.event.content.text.slice(0, 26)}
+                        fontSize={13}
+                        fontStyle="600"
+                        fill="#F8FAFC"
+                        width={BLOCK_WIDTH - 24}
+                        listening={false}
+                        opacity={blockAlpha}
                       />
-                    </Label>
-                  </Group>
-                );
-              })}
+                      {isSelected ? (
+                        <Rect
+                          x={p.x - 6}
+                          y={p.y - 6}
+                          width={BLOCK_WIDTH + 12}
+                          height={p.height + 12}
+                          cornerRadius={14}
+                          stroke={withAlpha(baseColor, 0.8)}
+                          strokeWidth={2}
+                          opacity={0.9}
+                          listening={false}
+                        />
+                      ) : null}
+                    </Group>
+                  );
+                })}
 
-              {positioned.map((p) => {
-                const baseColor =
-                  agentColorById[p.event.agent_id] ??
-                  EVENT_COLORS[p.event.event_type] ??
-                  "#3B82F6";
-                return (
-                  <Group key={p.event.event_id}>
-                    <Rect
-                      x={p.x}
-                      y={p.y}
-                      width={BLOCK_WIDTH}
-                      height={p.height}
-                      cornerRadius={12}
-                      fillLinearGradientStartPoint={{ x: p.x, y: p.y }}
-                      fillLinearGradientEndPoint={{ x: p.x, y: p.y + p.height }}
-                      fillLinearGradientColorStops={[
-                        0,
-                        withAlpha(baseColor, 0.28),
-                        1,
-                        withAlpha(baseColor, 0.12),
-                      ]}
-                      stroke={lighten(baseColor, 30)}
-                      strokeWidth={2}
-                      shadowColor={withAlpha(baseColor, 0.45)}
-                      shadowBlur={14}
-                      shadowOpacity={0.7}
-                    />
-                    <Text
-                      x={p.x + 12}
-                      y={p.y + 10}
-                      text={p.event.content.text.slice(0, 26)}
-                      fontSize={13}
-                      fontStyle="600"
-                      fill="#F8FAFC"
-                      width={BLOCK_WIDTH - 24}
-                      listening={false}
-                    />
-                  </Group>
-                );
-              })}
+                {threads.map(({ from, to }) => {
+                  const startX = from.x + BLOCK_WIDTH;
+                  const startY = from.y + from.height / 2;
+                  const endX = to.x;
+                  const endY = to.y + to.height / 2;
+                  const midX = (startX + endX) / 2;
+                  const sourceColor =
+                    agentColorById[from.event.agent_id] ??
+                    EVENT_COLORS[from.event.event_type] ??
+                    "#3B82F6";
+                  const targetColor =
+                    agentColorById[to.event.agent_id] ??
+                    EVENT_COLORS[to.event.event_type] ??
+                    "#A855F7";
+                  const opacity = threadOpacityFocused(
+                    from.event.event_id,
+                    to.event.event_id,
+                    focus,
+                    threadOpacity(scale)
+                  );
 
-              {threads.map(({ from, to }) => {
-                const startX = from.x + BLOCK_WIDTH;
-                const startY = from.y + from.height / 2;
-                const endX = to.x;
-                const endY = to.y + to.height / 2;
-                const midX = (startX + endX) / 2;
-                const sourceColor =
-                  agentColorById[from.event.agent_id] ??
-                  EVENT_COLORS[from.event.event_type] ??
-                  "#3B82F6";
-                const targetColor =
-                  agentColorById[to.event.agent_id] ??
-                  EVENT_COLORS[to.event.event_type] ??
-                  "#A855F7";
-
-                return (
-                  <Group key={`${from.event.event_id}->${to.event.event_id}`}>
-                    {branchCounts[from.event.event_id] ? (
-                      <Rect
-                        x={startX - 6}
-                        y={startY - 6}
-                        width={12}
-                        height={12}
-                        cornerRadius={6}
-                        fill={withAlpha(sourceColor, 0.95)}
-                        shadowColor={withAlpha(sourceColor, 0.6)}
-                        shadowBlur={10}
+                  return (
+                    <Group key={`${from.event.event_id}->${to.event.event_id}`}>
+                      {branchCounts[from.event.event_id] ? (
+                        <Rect
+                          x={startX - 6}
+                          y={startY - 6}
+                          width={12}
+                          height={12}
+                          cornerRadius={6}
+                          fill={withAlpha(sourceColor, 0.95)}
+                          shadowColor={withAlpha(sourceColor, 0.6)}
+                          shadowBlur={10}
+                        />
+                      ) : null}
+                      <Arrow
+                        points={[startX, startY, midX, startY, midX, endY, endX - 6, endY]}
+                        bezier
+                        strokeLinearGradientColorStops={[0, sourceColor, 1, targetColor]}
+                        strokeLinearGradientStartPoint={{ x: startX, y: startY }}
+                        strokeLinearGradientEndPoint={{ x: endX, y: endY }}
+                        strokeWidth={2.6}
+                        opacity={opacity}
+                        lineCap="round"
+                        lineJoin="round"
+                        pointerLength={10}
+                        pointerWidth={10}
+                        fill={withAlpha(targetColor, 0.9)}
                       />
-                    ) : null}
-                    <Arrow
-                      points={[startX, startY, midX, startY, midX, endY, endX - 6, endY]}
-                      bezier
-                      strokeLinearGradientColorStops={[0, sourceColor, 1, targetColor]}
-                      strokeLinearGradientStartPoint={{ x: startX, y: startY }}
-                      strokeLinearGradientEndPoint={{ x: endX, y: endY }}
-                      strokeWidth={2.6}
-                      opacity={threadOpacity(scale)}
-                      lineCap="round"
-                      lineJoin="round"
-                      pointerLength={10}
-                      pointerWidth={10}
-                      fill={withAlpha(targetColor, 0.9)}
-                    />
-                  </Group>
-                );
-              })}
-            </Layer>
-          </Stage>
+                    </Group>
+                  );
+                })}
+              </Layer>
+            </Stage>
+            <DetailPanel
+              context={eventContext}
+              agents={agents}
+              onClose={clearSelection}
+            />
+            {contextLoading && selectedEventId ? (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 20,
+                  right: 370,
+                  color: "#cbd5e1",
+                  fontSize: 12,
+                  background: "rgba(0,0,0,0.35)",
+                  padding: "6px 8px",
+                  borderRadius: 8,
+                }}
+              >
+                Loading context...
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </div>

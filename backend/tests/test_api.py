@@ -42,6 +42,18 @@ def test_events_have_causal_links_built():
     assert "evt_006" in lookup["evt_005"]["influences"]
 
 
+def test_events_include_internal_state_fields():
+    resp = client.get(f"/simulations/{SIM_ID}/events")
+    assert resp.status_code == 200
+    events = resp.json()
+    first = events[0]
+    assert "internal_state" in first
+    internal = first["internal_state"]
+    assert "reasoning_trace" in internal
+    assert "memories_accessed" in internal
+    assert "emotion" in internal
+
+
 def test_event_context_endpoint():
     resp = client.get("/events/evt_006/context")
     assert resp.status_code == 200
@@ -56,3 +68,12 @@ def test_event_context_endpoint():
 def test_event_context_not_found():
     resp = client.get("/events/evt_999/context")
     assert resp.status_code == 404
+
+
+def test_event_index_contains_seed_events():
+    from backend.main import EVENT_INDEX
+
+    assert "evt_006" in EVENT_INDEX
+    sim_id, event = EVENT_INDEX["evt_006"]
+    assert sim_id == SIM_ID
+    assert event.event_id == "evt_006"
