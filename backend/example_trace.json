@@ -1,0 +1,368 @@
+{
+"simulation_id": "sim_coffee_shop_001",
+"start_time": "2024-06-15T10:00:00Z",
+"agents": [
+ {
+ "agent_id": "agent_alice",
+ "name": "Alice",
+ "color": "#3B82F6"
+ },
+ {
+ "agent_id": "agent_bob",
+ "name": "Bob",
+ "color": "#10B981"
+ },
+ {
+ "agent_id": "agent_carol",
+ "name": "Carol",
+ "color": "#A855F7"
+ }
+],
+"locations": [
+ {
+ "room_id": "coffee_shop",
+ "name": "Coffee Shop"
+ }
+],
+"events": [
+ {
+ "event_id": "evt_001",
+ "agent_id": "agent_alice",
+ "timestamp": "2024-06-15T10:00:00Z",
+ "duration_ms": 1500,
+ "event_type": "cognition",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 10.5,
+ "y": 8.2
+ },
+ "content": {
+ "action_verb": "think",
+ "text": "I should order coffee",
+ "target_agent_id": null
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "I just entered the coffee shop",
+ "I need caffeine to start working",
+ "I'll approach the counter"
+ ],
+ "memories_accessed": [],
+ "emotion": "neutral"
+ },
+ "caused_by": [],
+ "influences": ["evt_002"]
+ },
+ {
+ "event_id": "evt_002",
+ "agent_id": "agent_alice",
+ "timestamp": "2024-06-15T10:00:02Z",
+ "duration_ms": 2000,
+ "event_type": "action",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 10.5,
+ "y": 8.2
+ },
+ "content": {
+ "action_verb": "speak",
+ "text": "Hi, I'd like a large cappuccino please.",
+ "target_agent_id": null
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "I decided to order",
+ "I prefer cappuccino",
+ "I'll speak politely to the barista"
+ ],
+ "memories_accessed": ["mem_alice_coffee_preference"],
+ "emotion": "content"
+ },
+ "caused_by": ["evt_001"],
+ "influences": ["evt_003"]
+ },
+ {
+ "event_id": "evt_003",
+ "agent_id": "agent_bob",
+ "timestamp": "2024-06-15T10:00:03Z",
+ "duration_ms": 1200,
+ "event_type": "perception",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 12.0,
+ "y": 8.5
+ },
+ "content": {
+ "action_verb": "observe",
+ "text": "I heard Alice ordering cappuccino",
+ "target_agent_id": "agent_alice"
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "I heard a female voice",
+ "That's Alice",
+ "She's ordering coffee"
+ ],
+ "memories_accessed": [],
+ "emotion": "neutral"
+ },
+ "caused_by": ["evt_002"],
+ "influences": ["evt_004"]
+ },
+ {
+ "event_id": "evt_004",
+ "agent_id": "agent_bob",
+ "timestamp": "2024-06-15T10:00:05Z",
+ "duration_ms": 2500,
+ "event_type": "cognition",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 12.0,
+ "y": 8.5
+ },
+ "content": {
+ "action_verb": "think",
+ "text": "Should I say hi to Alice?",
+ "target_agent_id": null
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "I noticed Alice is here",
+ "We worked together last month",
+ "It would be friendly to greet her",
+ "I'll walk over and say hello"
+ ],
+ "memories_accessed": ["mem_bob_alice_project"],
+ "emotion": "friendly"
+ },
+ "caused_by": ["evt_003"],
+ "influences": ["evt_005"]
+ },
+ {
+ "event_id": "evt_005",
+ "agent_id": "agent_bob",
+ "timestamp": "2024-06-15T10:00:08Z",
+ "duration_ms": 1800,
+ "event_type": "action",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 11.0,
+ "y": 8.3
+ },
+ "content": {
+ "action_verb": "speak",
+ "text": "Hey Alice! Good to see you.",
+ "target_agent_id": "agent_alice"
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "I'll use a casual greeting",
+ "I'll express genuine happiness to see her"
+ ],
+ "memories_accessed": [],
+ "emotion": "friendly"
+ },
+ "caused_by": ["evt_004"],
+ "influences": ["evt_006"]
+ },
+ {
+ "event_id": "evt_006",
+ "agent_id": "agent_alice",
+ "timestamp": "2024-06-15T10:00:09Z",
+ "duration_ms": 1000,
+ "event_type": "perception",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 10.5,
+ "y": 8.2
+ },
+ "content": {
+ "action_verb": "observe",
+ "text": "I heard Bob greeting me",
+ "target_agent_id": "agent_bob"
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "I heard my name",
+ "That's Bob's voice",
+ "He sounds friendly"
+ ],
+ "memories_accessed": [],
+ "emotion": "surprised-positive"
+ },
+ "caused_by": ["evt_005"],
+ "influences": ["evt_007"]
+ },
+ {
+ "event_id": "evt_007",
+ "agent_id": "agent_alice",
+ "timestamp": "2024-06-15T10:00:11Z",
+ "duration_ms": 2200,
+ "event_type": "cognition",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 10.5,
+ "y": 8.2
+ },
+ "content": {
+ "action_verb": "think",
+ "text": "How should I respond to Bob?",
+ "target_agent_id": null
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "Bob is greeting me warmly",
+ "We had a good working relationship",
+ "I should reciprocate the warmth",
+ "Maybe ask about his current project"
+ ],
+ "memories_accessed": ["mem_alice_bob_collaboration"],
+ "emotion": "pleased"
+ },
+ "caused_by": ["evt_006"],
+ "influences": ["evt_008"]
+ },
+ {
+ "event_id": "evt_008",
+ "agent_id": "agent_alice",
+ "timestamp": "2024-06-15T10:00:14Z",
+ "duration_ms": 2100,
+ "event_type": "action",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 10.5,
+ "y": 8.2
+ },
+ "content": {
+ "action_verb": "speak",
+ "text": "Bob! Hi! How's the new dashboard feature coming along?",
+ "target_agent_id": "agent_bob"
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "I'll greet him back warmly",
+ "Show interest in his work",
+ "Reference something specific I remember"
+ ],
+ "memories_accessed": ["mem_bob_dashboard_project"],
+ "emotion": "friendly"
+ },
+ "caused_by": ["evt_007"],
+ "influences": ["evt_009"]
+ },
+ {
+ "event_id": "evt_009",
+ "agent_id": "agent_carol",
+ "timestamp": "2024-06-15T10:00:15Z",
+ "duration_ms": 1400,
+ "event_type": "perception",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 8.0,
+ "y": 10.0
+ },
+ "content": {
+ "action_verb": "observe",
+ "text": "I noticed Alice and Bob talking",
+ "target_agent_id": null
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "I hear conversation nearby",
+ "That's Alice and Bob",
+ "They seem to know each other"
+ ],
+ "memories_accessed": [],
+ "emotion": "curious"
+ },
+ "caused_by": ["evt_008"],
+ "influences": ["evt_010"]
+ },
+ {
+ "event_id": "evt_010",
+ "agent_id": "agent_carol",
+ "timestamp": "2024-06-15T10:00:17Z",
+ "duration_ms": 2600,
+ "event_type": "cognition",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 8.0,
+ "y": 10.0
+ },
+ "content": {
+ "action_verb": "think",
+ "text": "Should I join their conversation?",
+ "target_agent_id": null
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "Alice and Bob are chatting",
+ "I'm new here and don't know them well",
+ "It might be awkward to interrupt",
+ "I'll keep to myself for now",
+ "Maybe I'll introduce myself later"
+ ],
+ "memories_accessed": [],
+ "emotion": "slightly-anxious"
+ },
+ "caused_by": ["evt_009"],
+ "influences": []
+ },
+ {
+ "event_id": "evt_011",
+ "agent_id": "agent_bob",
+ "timestamp": "2024-06-15T10:00:16Z",
+ "duration_ms": 1100,
+ "event_type": "perception",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 11.0,
+ "y": 8.3
+ },
+ "content": {
+ "action_verb": "observe",
+ "text": "Alice asked about my dashboard project",
+ "target_agent_id": "agent_alice"
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "Alice remembers my project",
+ "She's interested in my work",
+ "That's thoughtful of her"
+ ],
+ "memories_accessed": [],
+ "emotion": "appreciated"
+ },
+ "caused_by": ["evt_008"],
+ "influences": ["evt_012"]
+ },
+ {
+ "event_id": "evt_012",
+ "agent_id": "agent_bob",
+ "timestamp": "2024-06-15T10:00:19Z",
+ "duration_ms": 3200,
+ "event_type": "action",
+ "location": {
+ "room_id": "coffee_shop",
+ "x": 11.0,
+ "y": 8.3
+ },
+ "content": {
+ "action_verb": "speak",
+ "text": "It's going well! We just shipped the analytics panel. How about your authentication refactor?",
+ "target_agent_id": "agent_alice"
+ },
+ "internal_state": {
+ "reasoning_trace": [
+ "I'll share an update on my work",
+ "I'll also ask about her project",
+ "Show mutual interest"
+ ],
+ "memories_accessed": ["mem_alice_auth_project"],
+ "emotion": "engaged"
+ },
+ "caused_by": ["evt_011"],
+ "influences": []
+ }
+]
+}
