@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
 from .data import load_simulations
@@ -16,6 +17,12 @@ app.add_middleware(
 )
 
 SIMULATIONS = load_simulations()
+
+
+class EventContext(BaseModel):
+    event: AgentEvent
+    caused_by_events: list[AgentEvent]
+    influence_events: list[AgentEvent]
 
 
 def _get_sim(sim_id: str):
@@ -36,3 +43,17 @@ def list_events(sim_id: str):
     sim = _get_sim(sim_id)
     sorted_events = sorted(sim.events, key=lambda e: e.timestamp)
     return sorted_events
+
+
+@app.get("/events/{event_id}/context", response_model=EventContext)
+def get_event_context(event_id: str):
+    # Search all simulations (single seeded for now)
+    for sim in SIMULATIONS.values():
+        by_id = {evt.event_id: evt for evt in sim.events}
+        evt = by_id.get(event_id)
+        if not evt:
+            continue
+        caused = [by_id[cid] for cid in evt.caused_by if cid in by_id]
+        influences = [by_id[iid] for iid in evt.influences if iid in by_id]
+        return EventContext(event=evt, caused_by_events=caused, influence_events=influences)
+    raise HTTPException(status_code=404, detail="Event not found")

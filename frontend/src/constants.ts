@@ -11,3 +11,6 @@ export const BLOCK_WIDTH = 140;
 export const BLOCK_GAP = 4;
 export const BLOCK_HEIGHT_MIN = 16;
 export const BLOCK_HEIGHT_MAX = 200;
+
+export const THREAD_OPACITY_MIN = 0.15;
+export const THREAD_OPACITY_MAX = 0.9;

@@ -28,3 +28,9 @@ export type AgentEvent = {
   caused_by: string[];
   influences: string[];
 };
+
+export type EventContext = {
+  event: AgentEvent;
+  caused_by_events: AgentEvent[];
+  influence_events: AgentEvent[];
+};

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Layer, Rect, Stage, Text } from "react-konva";
+import { Layer, Rect, Stage, Text, Line } from "react-konva";
 import { fetchAgents, fetchEvents } from "./api";
 import { Agent, AgentEvent } from "./types";
 import { useViewport } from "./store/useViewport";
@@ -13,6 +13,7 @@ import {
   BLOCK_HEIGHT_MAX,
   WORLDLINE_WIDTH,
 } from "./constants";
+import { threadOpacity } from "./threads";
 
 type PositionedEvent = {
   event: AgentEvent;
@@ -20,6 +21,8 @@ type PositionedEvent = {
   y: number;
   height: number;
 };
+
+type PositionedEventMap = Record<string, PositionedEvent>;
 
 const clampHeight = (durationMs: number) => {
   const h = durationMs / 50;
@@ -47,6 +50,13 @@ function layoutEvents(agents: Agent[], events: AgentEvent[]): PositionedEvent[] 
   return positions;
 }
 
+function mapPositioned(positioned: PositionedEvent[]): PositionedEventMap {
+  return positioned.reduce<PositionedEventMap>((acc, p) => {
+    acc[p.event.event_id] = p;
+    return acc;
+  }, {});
+}
+
 function App() {
   const { data: agents = [], isLoading: agentsLoading } = useQuery({
     queryKey: ["agents"],
@@ -60,9 +70,15 @@ function App() {
 
   const { scale, offset, setScale, setOffset } = useViewport();
 
-  const positioned = useMemo(
-    () => layoutEvents(agents, events),
-    [agents, events]
+  const positioned = useMemo(() => layoutEvents(agents, events), [agents, events]);
+  const positionedById = useMemo(() => mapPositioned(positioned), [positioned]);
+  const agentColorById = useMemo(
+    () =>
+      agents.reduce<Record<string, string>>((acc, a) => {
+        acc[a.agent_id] = a.color;
+        return acc;
+      }, {}),
+    [agents]
   );
 
   const contentHeight =
@@ -94,6 +110,21 @@ function App() {
   };
 
   const loading = agentsLoading || eventsLoading;
+
+  const threads = useMemo(() => {
+    const lines: { from: PositionedEvent; to: PositionedEvent }[] = [];
+    events.forEach((evt) => {
+      const from = positionedById[evt.event_id];
+      if (!from) return;
+      evt.influences.forEach((targetId) => {
+        const to = positionedById[targetId];
+        if (to) {
+          lines.push({ from, to });
+        }
+      });
+    });
+    return lines;
+  }, [events, positionedById]);
 
   return (
     <div>
@@ -146,6 +177,44 @@ function App() {
                   opacity={0.9}
                 />
               ))}
+
+              {threads.map(({ from, to }) => {
+                const startX = from.x + BLOCK_WIDTH;
+                const startY = from.y + from.height / 2;
+                const endX = to.x;
+                const endY = to.y + to.height / 2;
+                const midX = (startX + endX) / 2;
+
+                const gradient = {
+                  colorStops: [
+                    0,
+                    agentColorById[from.event.agent_id] ??
+                      EVENT_COLORS[from.event.event_type] ??
+                      "#3B82F6",
+                    1,
+                    agentColorById[to.event.agent_id] ??
+                      EVENT_COLORS[to.event.event_type] ??
+                      "#A855F7",
+                  ],
+                  startPoint: { x: startX, y: startY },
+                  endPoint: { x: endX, y: endY },
+                } as const;
+
+                return (
+                  <Line
+                    key={`${from.event.event_id}->${to.event.event_id}`}
+                    points={[startX, startY, midX, startY, midX, endY, endX, endY]}
+                    bezier
+                    strokeLinearGradientColorStops={gradient.colorStops}
+                    strokeLinearGradientStartPoint={gradient.startPoint}
+                    strokeLinearGradientEndPoint={gradient.endPoint}
+                    strokeWidth={2}
+                    opacity={threadOpacity(scale)}
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                );
+              })}
 
               {positioned.map((p) => (
                 <Text
