@@ -1,0 +1,17 @@
+.venv/
+.uv-cache/
+.tmp/
+.npm-cache/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+node_modules/
+frontend/dist/
+build/
+dist/
+*.egg-info/
+
+.DS_Store
+
+.npm-cache
