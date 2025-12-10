@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Layer, Rect, Stage, Text, Line } from "react-konva";
+import { Layer, Rect, Stage, Text, Arrow, Label, Tag, Group } from "react-konva";
 import { fetchAgents, fetchEvents } from "./api";
 import { Agent, AgentEvent } from "./types";
 import { useViewport } from "./store/useViewport";
@@ -12,6 +12,9 @@ import {
   BLOCK_HEIGHT_MIN,
   BLOCK_HEIGHT_MAX,
   WORLDLINE_WIDTH,
+  GRID_SIZE,
+  GRID_DOT_SIZE,
+  CANVAS_MARGIN,
 } from "./constants";
 import { threadOpacity } from "./threads";
 
@@ -23,6 +26,26 @@ type PositionedEvent = {
 };
 
 type PositionedEventMap = Record<string, PositionedEvent>;
+
+const hexToRgb = (hex: string) => {
+  const normalized = hex.replace("#", "");
+  const bigint = parseInt(normalized.length === 3 ? normalized.repeat(2) : normalized, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return { r, g, b };
+};
+
+const withAlpha = (hex: string, alpha: number) => {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const lighten = (hex: string, amount: number) => {
+  const { r, g, b } = hexToRgb(hex);
+  const clamp = (v: number) => Math.min(255, Math.max(0, v));
+  return `rgb(${clamp(r + amount)}, ${clamp(g + amount)}, ${clamp(b + amount)})`;
+};
 
 const clampHeight = (durationMs: number) => {
   const h = durationMs / 50;
@@ -84,6 +107,10 @@ function App() {
   const contentHeight =
     positioned.reduce((acc, p) => Math.max(acc, p.y + p.height), 0) + 200;
   const contentWidth = agents.length * WORLDLINE_SPACING + 200;
+  const backgroundX = -CANVAS_MARGIN;
+  const backgroundY = -CANVAS_MARGIN;
+  const backgroundWidth = contentWidth + CANVAS_MARGIN * 2;
+  const backgroundHeight = contentHeight + CANVAS_MARGIN * 2;
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
@@ -111,11 +138,13 @@ function App() {
 
   const loading = agentsLoading || eventsLoading;
 
-  const threads = useMemo(() => {
+  const { threads, branchCounts } = useMemo(() => {
     const lines: { from: PositionedEvent; to: PositionedEvent }[] = [];
+    const counts: Record<string, number> = {};
     events.forEach((evt) => {
       const from = positionedById[evt.event_id];
       if (!from) return;
+      if (evt.influences.length > 1) counts[evt.event_id] = evt.influences.length;
       evt.influences.forEach((targetId) => {
         const to = positionedById[targetId];
         if (to) {
@@ -123,16 +152,36 @@ function App() {
         }
       });
     });
-    return lines;
+    return { threads: lines, branchCounts: counts };
   }, [events, positionedById]);
 
   return (
     <div>
       <div className="topbar">
-        <strong style={{ marginRight: 8 }}>ChronoMesh</strong>
-        <span style={{ color: "#94A3B8" }}>
-          Phase 1 · worldlines + blocks · zoom/pan
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle at 30% 30%, #38bdf8 0%, #2563eb 45%, #0f172a 100%)",
+              boxShadow: "0 0 12px rgba(56, 189, 248, 0.6)",
+            }}
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={{ fontWeight: 800, color: "#E2E8F0", fontSize: 16 }}>
+              ChronoMesh
+            </span>
+            <span style={{ color: "#94A3B8", fontSize: 12 }}>
+              Multi-agent spacetime traces
+            </span>
+          </div>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <span className="badge">Canvas · v1</span>
+          <span className="badge">Zoom & Pan</span>
+        </div>
       </div>
       <div className="canvas-container">
         {loading ? (
@@ -148,35 +197,120 @@ function App() {
             draggable
             onDragEnd={handleDragEnd}
             onWheel={handleWheel}
-            style={{ background: "#0F172A" }}
+            style={{ background: "transparent" }}
           >
+            <Layer listening={false}>
+              <Rect
+                x={backgroundX}
+                y={backgroundY}
+                width={backgroundWidth}
+                height={backgroundHeight}
+                perfectDrawEnabled={false}
+                sceneFunc={(ctx, shape) => {
+                  const w = shape.width();
+                  const h = shape.height();
+                  ctx.save();
+                  const gradient = ctx.createLinearGradient(0, 0, 0, h);
+                  gradient.addColorStop(0, "#0f182c");
+                  gradient.addColorStop(1, "#0b1224");
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(0, 0, w, h);
+                  ctx.beginPath();
+                  for (let gx = 0; gx <= w; gx += GRID_SIZE) {
+                    for (let gy = 0; gy <= h; gy += GRID_SIZE) {
+                      ctx.rect(
+                        gx - GRID_DOT_SIZE / 2,
+                        gy - GRID_DOT_SIZE / 2,
+                        GRID_DOT_SIZE,
+                        GRID_DOT_SIZE
+                      );
+                    }
+                  }
+                  ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+                  ctx.fill();
+                  ctx.restore();
+                }}
+              />
+            </Layer>
+
             <Layer>
               {agents.map((agent, idx) => {
-                const x = 120 + idx * WORLDLINE_SPACING + BLOCK_WIDTH / 2;
+                const color = agentColorById[agent.agent_id] ?? "#38bdf8";
+                const railCenter = 120 + idx * WORLDLINE_SPACING + BLOCK_WIDTH / 2;
                 return (
-                  <Rect
-                    key={agent.agent_id}
-                    x={x}
-                    y={0}
-                    width={WORLDLINE_WIDTH}
-                    height={contentHeight}
-                    fill="#1E293B"
-                  />
+                  <Group key={agent.agent_id}>
+                    <Rect
+                      x={railCenter - WORLDLINE_WIDTH / 2}
+                      y={-40}
+                      width={WORLDLINE_WIDTH}
+                      height={contentHeight + 60}
+                      cornerRadius={WORLDLINE_WIDTH}
+                      fill={withAlpha(color, 0.15)}
+                      stroke={withAlpha(color, 0.7)}
+                      strokeWidth={2}
+                      shadowColor={withAlpha(color, 0.5)}
+                      shadowBlur={18}
+                      shadowOpacity={0.6}
+                    />
+                    <Label x={railCenter - 40} y={-34} listening={false}>
+                      <Tag
+                        fill={withAlpha(color, 0.2)}
+                        stroke={withAlpha(color, 0.6)}
+                        strokeWidth={1}
+                        cornerRadius={12}
+                      />
+                      <Text
+                        text={agent.name}
+                        fontSize={12}
+                        fontStyle="700"
+                        fill="#E2E8F0"
+                        padding={8}
+                      />
+                    </Label>
+                  </Group>
                 );
               })}
 
-              {positioned.map((p) => (
-                <Rect
-                  key={p.event.event_id}
-                  x={p.x}
-                  y={p.y}
-                  width={BLOCK_WIDTH}
-                  height={p.height}
-                  fill={EVENT_COLORS[p.event.event_type] ?? "#3B82F6"}
-                  cornerRadius={6}
-                  opacity={0.9}
-                />
-              ))}
+              {positioned.map((p) => {
+                const baseColor =
+                  agentColorById[p.event.agent_id] ??
+                  EVENT_COLORS[p.event.event_type] ??
+                  "#3B82F6";
+                return (
+                  <Group key={p.event.event_id}>
+                    <Rect
+                      x={p.x}
+                      y={p.y}
+                      width={BLOCK_WIDTH}
+                      height={p.height}
+                      cornerRadius={12}
+                      fillLinearGradientStartPoint={{ x: p.x, y: p.y }}
+                      fillLinearGradientEndPoint={{ x: p.x, y: p.y + p.height }}
+                      fillLinearGradientColorStops={[
+                        0,
+                        withAlpha(baseColor, 0.28),
+                        1,
+                        withAlpha(baseColor, 0.12),
+                      ]}
+                      stroke={lighten(baseColor, 30)}
+                      strokeWidth={2}
+                      shadowColor={withAlpha(baseColor, 0.45)}
+                      shadowBlur={14}
+                      shadowOpacity={0.7}
+                    />
+                    <Text
+                      x={p.x + 12}
+                      y={p.y + 10}
+                      text={p.event.content.text.slice(0, 26)}
+                      fontSize={13}
+                      fontStyle="600"
+                      fill="#F8FAFC"
+                      width={BLOCK_WIDTH - 24}
+                      listening={false}
+                    />
+                  </Group>
+                );
+              })}
 
               {threads.map(({ from, to }) => {
                 const startX = from.x + BLOCK_WIDTH;
@@ -184,50 +318,46 @@ function App() {
                 const endX = to.x;
                 const endY = to.y + to.height / 2;
                 const midX = (startX + endX) / 2;
-
-                const gradient = {
-                  colorStops: [
-                    0,
-                    agentColorById[from.event.agent_id] ??
-                      EVENT_COLORS[from.event.event_type] ??
-                      "#3B82F6",
-                    1,
-                    agentColorById[to.event.agent_id] ??
-                      EVENT_COLORS[to.event.event_type] ??
-                      "#A855F7",
-                  ],
-                  startPoint: { x: startX, y: startY },
-                  endPoint: { x: endX, y: endY },
-                } as const;
+                const sourceColor =
+                  agentColorById[from.event.agent_id] ??
+                  EVENT_COLORS[from.event.event_type] ??
+                  "#3B82F6";
+                const targetColor =
+                  agentColorById[to.event.agent_id] ??
+                  EVENT_COLORS[to.event.event_type] ??
+                  "#A855F7";
 
                 return (
-                  <Line
-                    key={`${from.event.event_id}->${to.event.event_id}`}
-                    points={[startX, startY, midX, startY, midX, endY, endX, endY]}
-                    bezier
-                    strokeLinearGradientColorStops={gradient.colorStops}
-                    strokeLinearGradientStartPoint={gradient.startPoint}
-                    strokeLinearGradientEndPoint={gradient.endPoint}
-                    strokeWidth={2}
-                    opacity={threadOpacity(scale)}
-                    lineCap="round"
-                    lineJoin="round"
-                  />
+                  <Group key={`${from.event.event_id}->${to.event.event_id}`}>
+                    {branchCounts[from.event.event_id] ? (
+                      <Rect
+                        x={startX - 6}
+                        y={startY - 6}
+                        width={12}
+                        height={12}
+                        cornerRadius={6}
+                        fill={withAlpha(sourceColor, 0.95)}
+                        shadowColor={withAlpha(sourceColor, 0.6)}
+                        shadowBlur={10}
+                      />
+                    ) : null}
+                    <Arrow
+                      points={[startX, startY, midX, startY, midX, endY, endX - 6, endY]}
+                      bezier
+                      strokeLinearGradientColorStops={[0, sourceColor, 1, targetColor]}
+                      strokeLinearGradientStartPoint={{ x: startX, y: startY }}
+                      strokeLinearGradientEndPoint={{ x: endX, y: endY }}
+                      strokeWidth={2.6}
+                      opacity={threadOpacity(scale)}
+                      lineCap="round"
+                      lineJoin="round"
+                      pointerLength={10}
+                      pointerWidth={10}
+                      fill={withAlpha(targetColor, 0.9)}
+                    />
+                  </Group>
                 );
               })}
-
-              {positioned.map((p) => (
-                <Text
-                  key={`${p.event.event_id}-label`}
-                  x={p.x + 8}
-                  y={p.y + 8}
-                  text={p.event.content.text.slice(0, 22)}
-                  fontSize={12}
-                  fill="#F8FAFC"
-                  width={BLOCK_WIDTH - 16}
-                  listening={false}
-                />
-              ))}
             </Layer>
           </Stage>
         )}
