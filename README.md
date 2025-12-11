@@ -655,12 +655,19 @@ frontend/
 ---
 
 ### Phase 4: Polish & Deploy (Week 5)
-- [ ] Add timeline scrubber
-- [ ] Add loading states
-- [ ] Responsive design for detail panel
-- [ ] Error handling
-- [ ] Performance optimization (only render visible events)
-- [ ] Deploy demo with example simulation
+- [x] Add timeline scrubber
+- [x] Add loading states
+- [x] Responsive design for detail panel
+- [x] Error handling
+- [x] Performance optimization (only render visible events)
+- [x] Deploy demo with example simulation
+
+---
+
+### Demo: Run with Seeded Example
+1) Backend (terminal 1): `make backend` — starts FastAPI with the bundled `example_trace.json` simulation on `http://localhost:8000`.
+2) Frontend (terminal 2): `make frontend` — runs Vite dev server on `http://localhost:5173` pointing at the backend by default.
+3) Open the frontend URL and use the timeline scrubber to jump around the seeded conversation.
 
 ---
 
