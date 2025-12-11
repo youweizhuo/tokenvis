@@ -40,7 +40,17 @@ const ctx: EventContext = {
 
 describe("DetailPanel", () => {
   it("renders event info and neighbors", () => {
-    const { container } = render(<DetailPanel context={ctx} agents={agents} onClose={() => {}} />);
+    const { container } = render(
+      <DetailPanel
+        event={ctx.event}
+        context={ctx}
+        agents={agents}
+        loading={false}
+        error={undefined}
+        onRetryContext={() => {}}
+        onClose={() => {}}
+      />
+    );
     const panel = container.querySelector(".detail-panel");
     expect(panel).toBeTruthy();
     expect(screen.getByText("Alice")).toBeTruthy();
@@ -52,7 +62,17 @@ describe("DetailPanel", () => {
 
   it("calls onClose when close button clicked", () => {
     const onClose = vi.fn();
-    const { container } = render(<DetailPanel context={ctx} agents={agents} onClose={onClose} />);
+    const { container } = render(
+      <DetailPanel
+        event={ctx.event}
+        context={ctx}
+        agents={agents}
+        loading={false}
+        error={undefined}
+        onRetryContext={() => {}}
+        onClose={onClose}
+      />
+    );
     const panel = container.querySelector(".detail-panel") as HTMLElement;
     const close = panel.querySelector("button") as HTMLButtonElement;
     fireEvent.click(close);

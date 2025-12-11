@@ -1,8 +1,12 @@
-import { Agent, EventContext } from "../types";
+import { Agent, AgentEvent, EventContext } from "../types";
 
 type DetailPanelProps = {
+  event?: AgentEvent;
   context?: EventContext;
   agents: Agent[];
+  loading: boolean;
+  error?: string;
+  onRetryContext: () => void;
   onClose: () => void;
 };
 
@@ -15,15 +19,26 @@ const formatTime = (iso: string) => {
   });
 };
 
-export function DetailPanel({ context, agents, onClose }: DetailPanelProps) {
-  if (!context) return null;
+export function DetailPanel({
+  event,
+  context,
+  agents,
+  loading,
+  error,
+  onRetryContext,
+  onClose,
+}: DetailPanelProps) {
+  if (!event) return null;
+
   const agentLookup = agents.reduce<Record<string, string>>((acc, a) => {
     acc[a.agent_id] = a.name;
     return acc;
   }, {});
 
-  const { event, caused_by_events, influence_events } = context;
-  const agentName = agentLookup[event.agent_id] ?? event.agent_id;
+  const eventData = context?.event ?? event;
+  const caused_by_events = context?.caused_by_events ?? [];
+  const influence_events = context?.influence_events ?? [];
+  const agentName = agentLookup[eventData.agent_id] ?? eventData.agent_id;
 
   return (
     <div className="detail-panel">
@@ -31,7 +46,7 @@ export function DetailPanel({ context, agents, onClose }: DetailPanelProps) {
         <div>
           <div className="detail-title">{agentName}</div>
           <div className="detail-sub">
-            {event.event_type} · {formatTime(event.timestamp)} · {event.duration_ms} ms
+            {eventData.event_type} · {formatTime(eventData.timestamp)} · {eventData.duration_ms} ms
           </div>
         </div>
         <button className="detail-close" onClick={onClose} aria-label="Close detail panel">
@@ -39,15 +54,26 @@ export function DetailPanel({ context, agents, onClose }: DetailPanelProps) {
         </button>
       </div>
 
+      {loading ? (
+        <div className="detail-muted">Loading context…</div>
+      ) : error ? (
+        <div className="detail-error">
+          {error}{" "}
+          <button className="ghost-btn" onClick={onRetryContext}>
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       <div className="detail-section">
         <div className="detail-label">Content</div>
-        <div className="detail-body">{event.content.text}</div>
+        <div className="detail-body">{eventData.content.text}</div>
       </div>
 
       <div className="detail-section">
         <div className="detail-label">Reasoning Trace</div>
         <ul className="detail-list">
-          {event.internal_state.reasoning_trace.map((step, idx) => (
+          {eventData.internal_state.reasoning_trace.map((step, idx) => (
             <li key={idx}>{step}</li>
           ))}
         </ul>
@@ -57,8 +83,8 @@ export function DetailPanel({ context, agents, onClose }: DetailPanelProps) {
         <div>
           <div className="detail-label">Memories Accessed</div>
           <ul className="detail-list">
-            {event.internal_state.memories_accessed.length ? (
-              event.internal_state.memories_accessed.map((mem) => <li key={mem}>{mem}</li>)
+            {eventData.internal_state.memories_accessed.length ? (
+              eventData.internal_state.memories_accessed.map((mem) => <li key={mem}>{mem}</li>)
             ) : (
               <li className="detail-muted">None</li>
             )}
@@ -66,7 +92,7 @@ export function DetailPanel({ context, agents, onClose }: DetailPanelProps) {
         </div>
         <div>
           <div className="detail-label">Emotion</div>
-          <div className="detail-body">{event.internal_state.emotion ?? "neutral"}</div>
+          <div className="detail-body">{eventData.internal_state.emotion ?? "neutral"}</div>
         </div>
       </div>
 
@@ -76,7 +102,8 @@ export function DetailPanel({ context, agents, onClose }: DetailPanelProps) {
           <ul className="detail-list">
             {caused_by_events.map((c) => (
               <li key={c.event_id}>
-                <span className="detail-pill">{c.event_type}</span> {agentLookup[c.agent_id] ?? c.agent_id} · {formatTime(c.timestamp)}
+                <span className="detail-pill">{c.event_type}</span>{" "}
+                {agentLookup[c.agent_id] ?? c.agent_id} · {formatTime(c.timestamp)}
               </li>
             ))}
           </ul>
@@ -91,7 +118,8 @@ export function DetailPanel({ context, agents, onClose }: DetailPanelProps) {
           <ul className="detail-list">
             {influence_events.map((c) => (
               <li key={c.event_id}>
-                <span className="detail-pill">{c.event_type}</span> {agentLookup[c.agent_id] ?? c.agent_id} · {formatTime(c.timestamp)}
+                <span className="detail-pill">{c.event_type}</span>{" "}
+                {agentLookup[c.agent_id] ?? c.agent_id} · {formatTime(c.timestamp)}
               </li>
             ))}
           </ul>

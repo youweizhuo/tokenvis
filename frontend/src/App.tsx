@@ -30,6 +30,9 @@ type PositionedEvent = {
 
 type PositionedEventMap = Record<string, PositionedEvent>;
 
+const TIME_SCALE_MS_PER_PX = 40; // 40ms ≈ 1px for readable timeline spacing
+const VIRTUAL_BUFFER = 400; // px buffer outside viewport to render
+
 const hexToRgb = (hex: string) => {
   const normalized = hex.replace("#", "");
   const bigint = parseInt(normalized.length === 3 ? normalized.repeat(2) : normalized, 16);
@@ -55,23 +58,28 @@ const clampHeight = (durationMs: number) => {
   return Math.max(BLOCK_HEIGHT_MIN, Math.min(BLOCK_HEIGHT_MAX, h));
 };
 
-function layoutEvents(agents: Agent[], events: AgentEvent[]): PositionedEvent[] {
+function layoutEvents(agents: Agent[], events: AgentEvent[], startTimeMs: number): PositionedEvent[] {
   const positions: PositionedEvent[] = [];
-  const byAgent: Record<string, AgentEvent[]> = {};
-  agents.forEach((a) => (byAgent[a.agent_id] = []));
-  events.forEach((e) => byAgent[e.agent_id]?.push(e));
+  const xForAgent: Record<string, number> = {};
+  agents.forEach((a, idx) => {
+    xForAgent[a.agent_id] = 120 + idx * WORLDLINE_SPACING;
+  });
 
-  Object.entries(byAgent).forEach(([agentId, evts], idx) => {
-    const sorted = [...evts].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-    let y = 0;
-    const x = 120 + idx * WORLDLINE_SPACING;
-    sorted.forEach((e) => {
-      const height = clampHeight(e.duration_ms);
-      positions.push({ event: e, x, y, height });
-      y += height + BLOCK_GAP;
-    });
+  // Track last end per agent to avoid overlaps when duration exceeds time gap.
+  const lastEndByAgent: Record<string, number> = {};
+  const sorted = [...events].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  sorted.forEach((e) => {
+    const x = xForAgent[e.agent_id] ?? 120;
+    const deltaMs = new Date(e.timestamp).getTime() - startTimeMs;
+    const timeY = deltaMs / TIME_SCALE_MS_PER_PX;
+    const height = clampHeight(e.duration_ms);
+    const lastEnd = lastEndByAgent[e.agent_id] ?? -Infinity;
+    const y = Math.max(timeY, lastEnd + BLOCK_GAP);
+    positions.push({ event: e, x, y, height });
+    lastEndByAgent[e.agent_id] = y + height;
   });
   return positions;
 }
@@ -84,12 +92,24 @@ function mapPositioned(positioned: PositionedEvent[]): PositionedEventMap {
 }
 
 function App() {
-  const { data: agents = [], isLoading: agentsLoading } = useQuery({
+  const {
+    data: agents = [],
+    isLoading: agentsLoading,
+    error: agentsError,
+    refetch: refetchAgents,
+    isFetching: agentsFetching,
+  } = useQuery({
     queryKey: ["agents"],
     queryFn: fetchAgents,
   });
 
-  const { data: events = [], isLoading: eventsLoading } = useQuery({
+  const {
+    data: events = [],
+    isLoading: eventsLoading,
+    error: eventsError,
+    refetch: refetchEvents,
+    isFetching: eventsFetching,
+  } = useQuery({
     queryKey: ["events"],
     queryFn: fetchEvents,
   });
@@ -97,7 +117,25 @@ function App() {
   const { scale, offset, setScale, setOffset } = useViewport();
   const { selectedEventId, setSelectedEventId, clearSelection } = useSelection();
 
-  const positioned = useMemo(() => layoutEvents(agents, events), [agents, events]);
+  const viewportHeight = window.innerHeight - 48;
+  const viewportWidth = window.innerWidth;
+
+  const startTimeMs = useMemo(() => {
+    if (!events.length) return 0;
+    return Math.min(...events.map((e) => new Date(e.timestamp).getTime()));
+  }, [events]);
+
+  const endTimeMs = useMemo(() => {
+    if (!events.length) return 0;
+    return Math.max(...events.map((e) => new Date(e.timestamp).getTime()));
+  }, [events]);
+
+  const totalDurationMs = Math.max(0, endTimeMs - startTimeMs);
+
+  const positioned = useMemo(
+    () => layoutEvents(agents, events, startTimeMs),
+    [agents, events, startTimeMs]
+  );
   const positionedById = useMemo(() => mapPositioned(positioned), [positioned]);
   const agentColorById = useMemo(
     () =>
@@ -141,10 +179,18 @@ function App() {
   };
 
   const loading = agentsLoading || eventsLoading;
+  const fetching = agentsFetching || eventsFetching;
+  const hasError = !!agentsError || !!eventsError;
+  const errorMessage =
+    (agentsError && (agentsError as Error).message) ||
+    (eventsError && (eventsError as Error).message) ||
+    "Request failed";
 
   const {
     data: eventContext,
     isFetching: contextLoading,
+    error: contextError,
+    refetch: refetchContext,
   } = useQuery({
     queryKey: ["event-context", selectedEventId],
     queryFn: () => fetchEventContext(selectedEventId as string),
@@ -185,6 +231,57 @@ function App() {
     [clearSelection]
   );
 
+  const viewRect = useMemo(() => {
+    const viewX = -offset.x / scale;
+    const viewY = -offset.y / scale;
+    return {
+      x: viewX,
+      y: viewY,
+      width: viewportWidth / scale,
+      height: viewportHeight / scale,
+    };
+  }, [offset, scale, viewportWidth, viewportHeight]);
+
+  const visibleEvents = useMemo(
+    () =>
+      positioned.filter(
+        (p) =>
+          p.y + p.height >= viewRect.y - VIRTUAL_BUFFER &&
+          p.y <= viewRect.y + viewRect.height + VIRTUAL_BUFFER
+      ),
+    [positioned, viewRect]
+  );
+
+  const visibleIds = useMemo(
+    () => new Set(visibleEvents.map((p) => p.event.event_id)),
+    [visibleEvents]
+  );
+
+  const visibleThreads = useMemo(
+    () =>
+      threads.filter(
+        ({ from, to }) =>
+          visibleIds.has(from.event.event_id) && visibleIds.has(to.event.event_id)
+      ),
+    [threads, visibleIds]
+  );
+
+  const handleScrub = useCallback(
+    (msFromStart: number) => {
+      const targetY = msFromStart / TIME_SCALE_MS_PER_PX;
+      const newY = viewportHeight / 2 - targetY * scale;
+      setOffset({ x: offset.x, y: newY });
+    },
+    [scale, setOffset, viewportHeight, offset.x]
+  );
+
+  const currentTimeMs = useMemo(() => {
+    const centerY = (-offset.y + viewportHeight / 2) / scale;
+    const ms = centerY * TIME_SCALE_MS_PER_PX + startTimeMs;
+    if (!Number.isFinite(ms)) return startTimeMs;
+    return Math.min(Math.max(ms, startTimeMs), endTimeMs || startTimeMs);
+  }, [offset.y, scale, viewportHeight, startTimeMs, endTimeMs]);
+
   return (
     <div>
       <div className="topbar">
@@ -208,19 +305,51 @@ function App() {
             </span>
           </div>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <span className="badge">Canvas · v1</span>
-          <span className="badge">Zoom & Pan</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
+          {totalDurationMs > 0 ? (
+            <>
+              <div className="scrubber">
+                <input
+                  type="range"
+                  min={0}
+                  max={totalDurationMs || 1}
+                  step={100}
+                  value={totalDurationMs ? currentTimeMs - startTimeMs : 0}
+                  onChange={(e) => handleScrub(Number(e.target.value))}
+                  aria-label="Timeline scrubber"
+                />
+              </div>
+              <span className="badge">
+                t = {new Date(currentTimeMs).toLocaleTimeString([], { hour12: false })}
+              </span>
+            </>
+          ) : (
+            <span className="badge">Awaiting data</span>
+          )}
         </div>
       </div>
       <div className="canvas-container">
-        {loading ? (
-          <div style={{ padding: 16 }}>Loading...</div>
+        {hasError ? (
+          <div className="overlay-card error">
+            <div>
+              Failed to load data: {errorMessage}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="ghost-btn" onClick={() => refetchAgents()}>
+                Retry agents
+              </button>
+              <button className="ghost-btn" onClick={() => refetchEvents()}>
+                Retry events
+              </button>
+            </div>
+          </div>
+        ) : loading ? (
+          <div className="overlay-card">Loading timeline…</div>
         ) : (
           <>
             <Stage
-              width={window.innerWidth}
-              height={window.innerHeight - 48}
+              width={viewportWidth}
+              height={viewportHeight}
               x={offset.x}
               y={offset.y}
               scaleX={scale}
@@ -308,7 +437,7 @@ function App() {
                   );
                 })}
 
-                {positioned.map((p) => {
+                {visibleEvents.map((p) => {
                   const baseColor =
                     agentColorById[p.event.agent_id] ??
                     EVENT_COLORS[p.event.event_type] ??
@@ -370,7 +499,7 @@ function App() {
                   );
                 })}
 
-                {threads.map(({ from, to }) => {
+                {visibleThreads.map(({ from, to }) => {
                   const startX = from.x + BLOCK_WIDTH;
                   const startY = from.y + from.height / 2;
                   const endX = to.x;
@@ -425,26 +554,17 @@ function App() {
               </Layer>
             </Stage>
             <DetailPanel
+              event={selectedEvent}
               context={eventContext}
               agents={agents}
+              loading={contextLoading}
+              error={contextError ? "Failed to load context" : undefined}
+              onRetryContext={() => refetchContext()}
               onClose={clearSelection}
             />
-            {contextLoading && selectedEventId ? (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 20,
-                  right: 370,
-                  color: "#cbd5e1",
-                  fontSize: 12,
-                  background: "rgba(0,0,0,0.35)",
-                  padding: "6px 8px",
-                  borderRadius: 8,
-                }}
-              >
-                Loading context...
-              </div>
-            ) : null}
+            {fetching && (
+              <div className="overlay-card subtle">Syncing latest data…</div>
+            )}
           </>
         )}
       </div>
