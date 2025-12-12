@@ -42,24 +42,26 @@ export function TraceCanvas({
   pixelsPerMicrosecond = 0.0001,
   laneHeight = 80,
 }: Props) {
-  const { nodes, edges, bands } = useTraceLayout(spans, {
+  const { nodes, edges, bands, minStart, maxEnd } = useTraceLayout(spans, {
     pixelsPerMicrosecond,
     laneHeight,
   });
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
 
-  const timelineTicks = useMemo(
-    () => buildTimeline(spans, pixelsPerMicrosecond * zoom),
-    [spans, pixelsPerMicrosecond, zoom],
-  );
+  const contentWidth =
+    (maxEnd - minStart) * pixelsPerMicrosecond * Math.max(zoom, 1) + 400;
+
+  const timelineTicks = useMemo(() => {
+    return buildTimeline(spans, pixelsPerMicrosecond * zoom);
+  }, [spans, pixelsPerMicrosecond, zoom]);
 
   const nodeTypes = useMemo(() => ({ spanNode: SpanNode }), []);
   const edgeTypes = useMemo(() => ({ agentEdge: AgentEdge }), []);
 
   return (
     <div className="relative h-[640px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="pointer-events-none absolute inset-x-6 top-4 z-20 flex items-center gap-4 text-xs text-slate-500">
+      <div className="pointer-events-none absolute inset-x-6 top-2 z-30 flex items-center gap-4 text-xs text-slate-500">
         <div className="flex items-center gap-2">
           {["alice", "bob", "charlie"].map((a) => (
             <span key={a} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2 py-1">
@@ -73,18 +75,18 @@ export function TraceCanvas({
         </div>
       </div>
 
-      <div className="absolute inset-x-0 top-12 z-10 h-8 border-b border-slate-200 bg-gradient-to-b from-white via-white to-transparent px-6 pointer-events-none">
+      <div className="absolute inset-x-0 top-10 z-20 h-10 border-b border-slate-200 bg-white/85 backdrop-blur-sm px-6 pointer-events-none">
         <div className="relative h-full">
           {timelineTicks.map((tick, idx) => (
             <div
               key={`${tick.label}-${idx}`}
-              className="absolute top-0 flex flex-col items-center text-[11px] text-slate-500"
-              style={{ left: `${tick.x + pan.x}px` }}
-            >
-              <div className="h-2 w-[1px] bg-slate-300" />
-              <span className="mt-1 whitespace-nowrap">{tick.label}</span>
-            </div>
-          ))}
+            className="absolute top-0 flex flex-col items-center text-[11px] text-slate-500"
+            style={{ left: `${tick.x * zoom + pan.x}px` }}
+          >
+            <div className="h-2 w-[1px] bg-slate-300" />
+            <span className="mt-1 whitespace-nowrap">{tick.label}</span>
+          </div>
+        ))}
         </div>
       </div>
 
@@ -101,7 +103,7 @@ export function TraceCanvas({
         fitView
         fitViewOptions={{ padding: 0.2 }}
         proOptions={{ hideAttribution: true }}
-        className="pt-12"
+        className="pt-16"
         onMoveEnd={(_, vp) => {
           setZoom(vp.zoom);
           setPan({ x: vp.x, y: vp.y });
@@ -115,23 +117,20 @@ export function TraceCanvas({
         <MiniMap pannable zoomable />
         <Controls showInteractive={false} />
 
-        <div
-          className="pointer-events-none absolute left-0 top-0"
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: "0 0",
-          }}
-        >
+        <div className="pointer-events-none absolute left-0 top-16">
           {bands.map((band, idx) => (
             <div
               key={band.locationId}
               className="absolute left-0 right-0 flex items-center"
               style={{
-                top: band.startLane * laneHeight + 48,
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom},1)`,
+                transformOrigin: "0 0",
+                top: band.startLane * laneHeight,
                 height: band.laneCount * laneHeight,
                 backgroundColor: idx % 2 === 0 ? "#f8fafc" : "#eef2ff",
                 borderTop: "1px solid #e2e8f0",
                 borderBottom: "1px solid #e2e8f0",
+                width: `${contentWidth}px`,
               }}
               aria-hidden
             >
