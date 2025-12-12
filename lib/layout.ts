@@ -105,6 +105,7 @@ export function computeDeterministicLayout(input: SpanInput[]): LayoutResult {
 export type FlowNode = {
   id: string;
   position: { x: number; y: number };
+  style?: React.CSSProperties;
   data: {
     span: SpanInput;
     lane: number;
@@ -137,11 +138,16 @@ export function layoutToFlow(
   const laneHeight = options.laneHeight ?? 80;
 
   const nodes: FlowNode[] = positioned.map((span) => {
+    const width = Math.max((span.end_time - span.start_time) * ppu, 12);
     return {
       id: `span-${span.id}`,
       position: {
         x: span.start_time * ppu,
         y: span.lane * laneHeight,
+      },
+      style: {
+        width,
+        height: Math.max(laneHeight * 0.72, 36),
       },
       data: {
         span,
@@ -180,6 +186,7 @@ export function layoutToFlow(
         source: `span-${source.id}`,
         target: `span-${target.id}`,
         type: "smoothstep",
+        data: { agent_id: source.agent_id },
       });
     }
   }

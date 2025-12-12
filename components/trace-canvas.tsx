@@ -47,6 +47,7 @@ export function TraceCanvas({
     laneHeight,
   });
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
 
   const timelineTicks = useMemo(
     () => buildTimeline(spans, pixelsPerMicrosecond * zoom),
@@ -78,7 +79,7 @@ export function TraceCanvas({
             <div
               key={`${tick.label}-${idx}`}
               className="absolute top-0 flex flex-col items-center text-[11px] text-slate-500"
-              style={{ left: `${tick.x}px` }}
+              style={{ left: `${tick.x + pan.x}px` }}
             >
               <div className="h-2 w-[1px] bg-slate-300" />
               <span className="mt-1 whitespace-nowrap">{tick.label}</span>
@@ -92,7 +93,7 @@ export function TraceCanvas({
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        edgeOptions={{ type: "agentEdge" }}
+        defaultEdgeOptions={{ type: "agentEdge" }}
         nodesDraggable={false}
         nodesConnectable={false}
         zoomOnScroll
@@ -101,31 +102,45 @@ export function TraceCanvas({
         fitViewOptions={{ padding: 0.2 }}
         proOptions={{ hideAttribution: true }}
         className="pt-12"
-        onMoveEnd={(_, vp) => setZoom(vp.zoom)}
-        onMove={(_, vp) => setZoom(vp.zoom)}
+        onMoveEnd={(_, vp) => {
+          setZoom(vp.zoom);
+          setPan({ x: vp.x, y: vp.y });
+        }}
+        onMove={(_, vp) => {
+          setZoom(vp.zoom);
+          setPan({ x: vp.x, y: vp.y });
+        }}
       >
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
         <MiniMap pannable zoomable />
         <Controls showInteractive={false} />
 
-        {bands.map((band, idx) => (
-          <div
-            key={band.locationId}
-            className="pointer-events-none absolute left-0 right-0 flex items-center"
-            style={{
-              top: band.startLane * laneHeight + 48,
-              height: band.laneCount * laneHeight,
-              backgroundColor: idx % 2 === 0 ? "#f8fafc" : "#eef2ff",
-              borderTop: "1px solid #e2e8f0",
-              borderBottom: "1px solid #e2e8f0",
-            }}
-            aria-hidden
-          >
-            <span className="ml-2 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm ring-1 ring-slate-200">
-              {band.locationId}
-            </span>
-          </div>
-        ))}
+        <div
+          className="pointer-events-none absolute left-0 top-0"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: "0 0",
+          }}
+        >
+          {bands.map((band, idx) => (
+            <div
+              key={band.locationId}
+              className="absolute left-0 right-0 flex items-center"
+              style={{
+                top: band.startLane * laneHeight + 48,
+                height: band.laneCount * laneHeight,
+                backgroundColor: idx % 2 === 0 ? "#f8fafc" : "#eef2ff",
+                borderTop: "1px solid #e2e8f0",
+                borderBottom: "1px solid #e2e8f0",
+              }}
+              aria-hidden
+            >
+              <span className="ml-2 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm ring-1 ring-slate-200">
+                {band.locationId}
+              </span>
+            </div>
+          ))}
+        </div>
       </ReactFlow>
     </div>
   );
