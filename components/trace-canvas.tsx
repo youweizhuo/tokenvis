@@ -57,12 +57,11 @@ function TraceCanvasInner({
 
   const viewport = useViewport();
   const headerOffset = 40;
+  const gutterWidth = 120;
 
   const traceDurationUs = Math.max(maxEnd - minStart, 1);
-  const worldWidth = Math.max(traceDurationUs * pixelsPerMicrosecond, 400);
-  const horizontalPadding = 200;
-  const verticalPadding = 80;
-  const extentMin = { x: -horizontalPadding, y: -verticalPadding };
+  const worldWidth = Math.max(traceDurationUs * pixelsPerMicrosecond * 10, 4000); // 10x larger for infinite scroll
+  const extentMin = { x: -gutterWidth, y: 0 }; // Gutter left of x=0, no vertical padding
 
   const maxLaneIndex =
     bands.length === 0
@@ -70,8 +69,8 @@ function TraceCanvasInner({
       : Math.max(...bands.map((band) => band.startLane + band.laneCount));
   const totalHeight = Math.max(maxLaneIndex * laneHeight, laneHeight);
   const extentMax = {
-    x: worldWidth + horizontalPadding,
-    y: totalHeight + verticalPadding + headerOffset,
+    x: worldWidth,
+    y: totalHeight + headerOffset,
   };
 
   const timelineTicks = useMemo(() => {
@@ -141,29 +140,52 @@ function TraceCanvasInner({
 
         <ViewportPortal>
           <div className="pointer-events-none absolute left-0 top-0 -z-10">
+            {/* Time zero reference line */}
+            <div
+              className="absolute bg-slate-400"
+              style={{
+                left: 0,
+                top: headerOffset,
+                width: "1px",
+                height: totalHeight,
+              }}
+              aria-hidden
+            />
+
             {bands.map((band, idx) => (
-              <div
-                key={band.locationId}
-                className="absolute flex items-center"
-                style={{
-                  top: band.startLane * laneHeight + headerOffset,
-                  height: band.laneCount * laneHeight,
-                  width: worldWidth,
-                  backgroundColor: idx % 2 === 0 ? "#f8fafc" : "#eef2ff",
-                  borderTop: "1px solid #e2e8f0",
-                  borderBottom: "1px solid #e2e8f0",
-                }}
-                aria-hidden
-              >
-                <span
-                  className="ml-2 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm ring-1 ring-slate-200"
+              <div key={band.locationId}>
+                {/* Swimlane background extending infinitely */}
+                <div
+                  className="absolute"
                   style={{
-                    transform: `translate(8px, 8px) scale(${1 / viewport.zoom})`,
-                    transformOrigin: "0 0",
+                    left: -gutterWidth,
+                    top: band.startLane * laneHeight + headerOffset,
+                    height: band.laneCount * laneHeight,
+                    width: worldWidth + gutterWidth,
+                    backgroundColor: idx % 2 === 0 ? "#f8fafc" : "#eef2ff",
+                    borderTop: "1px solid #e2e8f0",
+                    borderBottom: "1px solid #e2e8f0",
                   }}
+                  aria-hidden
+                />
+
+                {/* Location label in gutter */}
+                <div
+                  className="absolute flex items-center justify-end"
+                  style={{
+                    left: -gutterWidth,
+                    top: band.startLane * laneHeight + headerOffset,
+                    height: band.laneCount * laneHeight,
+                    width: gutterWidth - 8,
+                  }}
+                  aria-hidden
                 >
-                  {band.locationId}
-                </span>
+                  <span
+                    className="rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-200"
+                  >
+                    {band.locationId}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
