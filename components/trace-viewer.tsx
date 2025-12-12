@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 
 import { TraceCanvas } from "@/components/trace-canvas";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SpanInput } from "@/lib/layout";
 
 type Props = {
@@ -30,7 +33,6 @@ export function TraceViewer({ traceName, spans, error }: Props) {
   const [agentsState, setAgentsState] = useState<Record<string, boolean>>(() =>
     agentFilters.reduce((acc, f) => ({ ...acc, [f.id]: true }), {}),
   );
-
   const filteredSpans = useMemo(
     () => spans.filter((s) => agentsState[s.agent_id] !== false),
     [spans, agentsState],
@@ -46,72 +48,72 @@ export function TraceViewer({ traceName, spans, error }: Props) {
     <div className="flex min-h-[720px] flex-col gap-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-slate-600">
-          <span className="font-semibold text-slate-800">TokenVis</span>
-          <span>·</span>
-          <span>Trace: {traceName ?? "(none)"} </span>
-          {error && <span className="text-red-600"> · {error}</span>}
+          <span className="text-base font-semibold text-slate-900">TokenVis</span>
+          <Badge variant="secondary">Trace: {traceName ?? "(none)"} </Badge>
+          {error && <Badge className="bg-red-100 text-red-700">Error</Badge>}
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setLeftOpen((v) => !v)}
-            className="rounded-md border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 shadow-sm hover:bg-slate-50"
-          >
+          <Button variant="outline" size="sm" onClick={() => setLeftOpen((v) => !v)}>
             {leftOpen ? "Hide Filters" : "Show Filters"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setRightOpen((v) => !v)}
-            className="rounded-md border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 shadow-sm hover:bg-slate-50"
-          >
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setRightOpen((v) => !v)}>
             {rightOpen ? "Hide Details" : "Show Details"}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-12 gap-3">
         {/* Left panel */}
         <div
-          className={`transition-all ${leftOpen ? "col-span-3" : "col-span-0 hidden lg:block lg:col-span-1"}`}
+          className={`hidden lg:block transition-all ${leftOpen ? "col-span-3" : "col-span-0 hidden"}`}
         >
           {leftOpen && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-800">Filters</h3>
-              <div className="mt-3 space-y-2 text-sm text-slate-600">
-                {agentFilters.map((agent) => (
-                  <label key={agent.id} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300"
-                      checked={agentsState[agent.id] !== false}
-                      onChange={(e) =>
-                        setAgentsState((prev) => ({
-                          ...prev,
-                          [agent.id]: e.target.checked,
-                        }))
-                      }
-                    />
-                    <span>{agent.id}</span>
-                  </label>
-                ))}
-              </div>
-
-              <div className="mt-4 space-y-1 text-sm text-slate-600">
-                <div className="font-semibold text-slate-800">Time Range</div>
-                <p className="text-xs text-slate-500">
-                  (Preset placeholder: future slider / inputs)
-                </p>
-              </div>
-
-              <div className="mt-4 space-y-1 text-sm text-slate-600">
-                <div className="font-semibold text-slate-800">
-                  Style Preset
+            <Card>
+              <CardHeader className="pb-0">
+                <h3 className="text-sm font-semibold text-slate-800">Filters</h3>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2 text-sm text-slate-600">
+                  <div className="text-xs font-semibold uppercase text-slate-500">
+                    Agents
+                  </div>
+                  {agentFilters.map((agent) => (
+                    <label key={agent.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300"
+                        checked={agentsState[agent.id] !== false}
+                        onChange={(e) =>
+                          setAgentsState((prev) => ({
+                            ...prev,
+                            [agent.id]: e.target.checked,
+                          }))
+                        }
+                      />
+                      <span>{agent.id}</span>
+                    </label>
+                  ))}
                 </div>
-                <p className="text-xs text-slate-500">
-                  (Placeholder toggle for light/pastel styles)
-                </p>
-              </div>
-            </div>
+
+                <div className="space-y-1 text-sm text-slate-600">
+                  <div className="text-xs font-semibold uppercase text-slate-500">
+                    Time Range
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    (Preset placeholder: future slider / inputs)
+                  </p>
+                </div>
+
+                <div className="space-y-1 text-sm text-slate-600">
+                  <div className="text-xs font-semibold uppercase text-slate-500">
+                    Style Preset
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    (Placeholder toggle for light/pastel styles)
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
 
@@ -174,4 +176,3 @@ export function TraceViewer({ traceName, spans, error }: Props) {
     </div>
   );
 }
-
