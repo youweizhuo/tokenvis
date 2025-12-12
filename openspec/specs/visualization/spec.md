@@ -32,11 +32,11 @@ The viewer SHALL display a timeline bar with ticks/labels synchronized to the pi
 - **THEN** timeline ticks align with span positions within acceptable rounding (≤0.5px drift).
 
 ### Requirement: Timeline aligned with zoom
-The timeline bar SHALL remain fixed at the top while its ticks scale with the current zoom so labels stay aligned to span positions.
+The timeline bar SHALL remain fixed at the top while its ticks are positioned by projecting world time coordinates through the current viewport transform (x, y, zoom) so they stay aligned with span start/end positions without double scaling.
 
 #### Scenario: Zoomed timeline
-- **WHEN** the user zooms in or out
-- **THEN** the timeline ticks shift/scale to remain aligned with nodes while the bar itself stays fixed.
+- **WHEN** the user zooms in or out or pans the canvas
+- **THEN** timeline ticks stay aligned to span nodes within ≤0.5px drift because tick positions use the viewport transform, and the ruler origin remains at time 0 after fitView or translateExtent adjustments.
 
 ### Requirement: Duration-proportional nodes under zoom
 Node widths SHALL stay proportional to span durations at any zoom level (no squashing/stretching artifacts).
@@ -46,11 +46,11 @@ Node widths SHALL stay proportional to span durations at any zoom level (no squa
 - **THEN** node widths still reflect `(end_time - start_time)` at the scaled pixel-per-microsecond ratio.
 
 ### Requirement: Lanes stay bound to spans
-Swimlane bands SHALL translate/scale with canvas zoom/pan so spans remain within their location lanes.
+Swimlane bands SHALL render in the same viewport as nodes (e.g., via `ViewportPortal`) and apply the full x/y zoom transform so spans and lane backgrounds move and scale together.
 
 #### Scenario: Lane alignment on pan/zoom
 - **WHEN** the user pans or zooms
-- **THEN** lane backgrounds move/scale with nodes and spans never leave their lanes.
+- **THEN** each lane background translates and scales with nodes on both axes, and lane labels stay within their bands.
 
 ### Requirement: Three-panel responsive layout
 The viewer SHALL present a three-panel layout: left controls panel (collapsible), center canvas, and right details panel (collapsible).
@@ -79,4 +79,32 @@ On narrow viewports, panels SHALL be toggleable/stacked so the canvas remains us
 #### Scenario: Mobile toggle
 - **WHEN** the viewport is narrow
 - **THEN** the panels hide behind toggles, and opening one does not permanently obscure the canvas.
+
+### Requirement: Shadcn-based viewer UI
+The viewer UI (left controls, right details, legends, toggles) SHALL be built with Shadcn components styled via Tailwind tokens.
+
+#### Scenario: Unified components
+- **WHEN** the viewer renders
+- **THEN** panels, buttons, badges, inputs, and drawers use Shadcn primitives with consistent styling.
+
+### Requirement: Responsive pane behavior (Shadcn sheets/drawers)
+Side panels SHALL collapse on desktop and become Shadcn Sheet/Drawer on mobile, without covering the canvas when closed.
+
+#### Scenario: Mobile sheet
+- **WHEN** on a narrow viewport
+- **THEN** opening the left or right panel presents a sheet/drawer; closing it restores full canvas width.
+
+### Requirement: Canvas toolbar/legend with Shadcn tokens
+Canvas-adjacent UI (legends, timeline badges, toolbar buttons) SHALL use Shadcn Button/Badge/Tooltip components and follow the shared pastel palette.
+
+#### Scenario: Legend styling
+- **WHEN** the legend renders
+- **THEN** agent badges use Shadcn badge styles with the defined color tokens.
+
+### Requirement: Bounded canvas extent
+The viewport SHALL clamp panning and zooming to the trace bounds (time ≥ 0 through the last span end plus configurable padding) and total lane height so the timeline and swimlanes terminate with the data.
+
+#### Scenario: Clamp panning to trace bounds
+- **WHEN** the user pans or zooms the canvas
+- **THEN** the viewport cannot move left of time 0 or past the trace end + padding, and lane backgrounds stop at the same boundary.
 
