@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -46,10 +46,11 @@ export function TraceCanvas({
     pixelsPerMicrosecond,
     laneHeight,
   });
+  const [zoom, setZoom] = useState(1);
 
   const timelineTicks = useMemo(
-    () => buildTimeline(spans, pixelsPerMicrosecond),
-    [spans, pixelsPerMicrosecond],
+    () => buildTimeline(spans, pixelsPerMicrosecond * zoom),
+    [spans, pixelsPerMicrosecond, zoom],
   );
 
   const nodeTypes = useMemo(() => ({ spanNode: SpanNode }), []);
@@ -71,7 +72,7 @@ export function TraceCanvas({
         </div>
       </div>
 
-      <div className="absolute inset-x-0 top-12 z-10 h-8 border-b border-slate-200 bg-gradient-to-b from-white via-white to-transparent px-6">
+      <div className="absolute inset-x-0 top-12 z-10 h-8 border-b border-slate-200 bg-gradient-to-b from-white via-white to-transparent px-6 pointer-events-none">
         <div className="relative h-full">
           {timelineTicks.map((tick, idx) => (
             <div
@@ -100,6 +101,8 @@ export function TraceCanvas({
         fitViewOptions={{ padding: 0.2 }}
         proOptions={{ hideAttribution: true }}
         className="pt-12"
+        onMoveEnd={(_, vp) => setZoom(vp.zoom)}
+        onMove={(_, vp) => setZoom(vp.zoom)}
       >
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
         <MiniMap pannable zoomable />
