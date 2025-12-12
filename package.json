@@ -10,7 +10,8 @@
     "test": "echo \"No tests yet\"",
     "seed": "tsx scripts/seed.ts",
     "drizzle:generate": "drizzle-kit generate:sqlite --config drizzle.config.ts",
-    "drizzle:studio": "drizzle-kit studio --config drizzle.config.ts"
+    "drizzle:studio": "drizzle-kit studio --config drizzle.config.ts",
+    "bench:layout": "tsx scripts/bench-layout.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.66.9",
