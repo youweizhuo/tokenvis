@@ -46,21 +46,35 @@ export function TraceViewer({ traceName, spans, error }: Props) {
 
   return (
     <div className="flex min-h-[720px] flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <span className="text-base font-semibold text-slate-900">TokenVis</span>
-          <Badge variant="secondary">Trace: {traceName ?? "(none)"} </Badge>
-          {error && <Badge className="bg-red-100 text-red-700">Error</Badge>}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setLeftOpen((v) => !v)}>
-            {leftOpen ? "Hide Filters" : "Show Filters"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setRightOpen((v) => !v)}>
-            {rightOpen ? "Hide Details" : "Show Details"}
-          </Button>
-        </div>
-      </div>
+      <Card className="border-slate-200 bg-white">
+        <CardContent className="flex items-center justify-between py-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            <span className="text-base font-semibold text-slate-900">
+              TokenVis
+            </span>
+            <Badge variant="secondary">
+              Trace: {traceName ?? "(none)"}
+            </Badge>
+            {error && <Badge className="bg-red-100 text-red-700">Error</Badge>}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLeftOpen((v) => !v)}
+            >
+              {leftOpen ? "Hide Filters" : "Show Filters"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRightOpen((v) => !v)}
+            >
+              {rightOpen ? "Hide Details" : "Show Details"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-12 gap-3">
         {/* Left panel */}
@@ -72,7 +86,7 @@ export function TraceViewer({ traceName, spans, error }: Props) {
               <CardHeader className="pb-0">
                 <h3 className="text-sm font-semibold text-slate-800">Filters</h3>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 <div className="space-y-2 text-sm text-slate-600">
                   <div className="text-xs font-semibold uppercase text-slate-500">
                     Agents
@@ -95,12 +109,19 @@ export function TraceViewer({ traceName, spans, error }: Props) {
                   ))}
                 </div>
 
-                <div className="space-y-1 text-sm text-slate-600">
+                <div className="space-y-2 text-sm text-slate-600">
                   <div className="text-xs font-semibold uppercase text-slate-500">
                     Time Range
                   </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    className="w-full accent-slate-400"
+                    onChange={() => {}}
+                  />
                   <p className="text-xs text-slate-500">
-                    (Preset placeholder: future slider / inputs)
+                    (Placeholder slider; hook to time window later)
                   </p>
                 </div>
 
@@ -108,9 +129,14 @@ export function TraceViewer({ traceName, spans, error }: Props) {
                   <div className="text-xs font-semibold uppercase text-slate-500">
                     Style Preset
                   </div>
-                  <p className="text-xs text-slate-500">
-                    (Placeholder toggle for light/pastel styles)
-                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline">
+                      Pastel
+                    </Button>
+                    <Button size="sm" variant="ghost">
+                      High contrast
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -131,45 +157,49 @@ export function TraceViewer({ traceName, spans, error }: Props) {
           className={`transition-all ${rightOpen ? "col-span-3" : "col-span-0 hidden lg:block lg:col-span-1"}`}
         >
           {rightOpen && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm h-full">
-              <h3 className="text-sm font-semibold text-slate-800">
-                Node Details
-              </h3>
-              {selectedSpan ? (
-                <div className="mt-3 space-y-2 text-sm text-slate-700">
-                  <div>
-                    <span className="font-semibold">Agent:</span>{" "}
-                    {selectedSpan.agent_id}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Location:</span>{" "}
-                    {selectedSpan.location_id}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Start:</span>{" "}
-                    {selectedSpan.start_time} μs
-                  </div>
-                  <div>
-                    <span className="font-semibold">End:</span>{" "}
-                    {selectedSpan.end_time} μs
-                  </div>
-                  <div>
-                    <span className="font-semibold">Duration:</span>{" "}
-                    {(selectedSpan.end_time - selectedSpan.start_time) / 1000}{" "}
-                    ms
-                  </div>
-                  {selectedSpan.data && (
-                    <pre className="rounded bg-slate-50 p-2 text-xs text-slate-600">
-                      {JSON.stringify(selectedSpan.data, null, 2)}
-                    </pre>
-                  )}
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-slate-500">
-                  Select a node to see details.
-                </p>
-              )}
-            </div>
+            <Card className="h-full">
+              <CardHeader className="pb-2">
+                <h3 className="text-sm font-semibold text-slate-800">
+                  Node Details
+                </h3>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-slate-700">
+                {selectedSpan ? (
+                  <>
+                    <div>
+                      <span className="font-semibold">Agent:</span>{" "}
+                      {selectedSpan.agent_id}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Location:</span>{" "}
+                      {selectedSpan.location_id}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Start:</span>{" "}
+                      {selectedSpan.start_time} μs
+                    </div>
+                    <div>
+                      <span className="font-semibold">End:</span>{" "}
+                      {selectedSpan.end_time} μs
+                    </div>
+                    <div>
+                      <span className="font-semibold">Duration:</span>{" "}
+                      {(selectedSpan.end_time - selectedSpan.start_time) / 1000}{" "}
+                      ms
+                    </div>
+                    {selectedSpan.data && (
+                      <pre className="rounded bg-slate-50 p-2 text-xs text-slate-600">
+                        {JSON.stringify(selectedSpan.data, null, 2)}
+                      </pre>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Select a node to see details.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>
