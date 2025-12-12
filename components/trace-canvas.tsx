@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useMemo } from "react";
-import ReactFlow, {
+import {
+  ReactFlow,
   Background,
   BackgroundVariant,
   Controls,
@@ -9,7 +10,7 @@ import ReactFlow, {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { layoutToFlow, SpanInput } from "@/lib/layout";
+import { computeDeterministicLayout, SpanInput } from "@/lib/layout";
 import { useTraceLayout } from "@/lib/use-trace-layout";
 
 type LaneBand = {
@@ -27,7 +28,7 @@ function computeLaneBands(
   spans: SpanInput[],
   laneHeight: number,
 ): LaneBand[] {
-  const { spans: positioned } = layoutToFlow(spans);
+  const { spans: positioned } = computeDeterministicLayout(spans);
 
   const byLocation = new Map<string, number>();
   for (const span of positioned) {
@@ -89,4 +90,3 @@ export function TraceCanvas({
     </div>
   );
 }
-

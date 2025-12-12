@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+
 import { spans, traces } from "@/db/schema";
 import { db } from "@/db";
 
@@ -6,7 +8,7 @@ export async function loadKitchenSinkTrace() {
     const trace = await db
       .select()
       .from(traces)
-      .where(traces.id.eq("kitchen-sink"));
+      .where(eq(traces.id, "kitchen-sink"));
 
     if (trace.length === 0) {
       return { trace: null, spans: [], error: null };
@@ -23,7 +25,7 @@ export async function loadKitchenSinkTrace() {
         data: spans.data,
       })
       .from(spans)
-      .where(spans.traceId.eq("kitchen-sink"))
+      .where(eq(spans.traceId, "kitchen-sink"))
       .orderBy(spans.startTime);
 
     return { trace: trace[0], spans: spanRows, error: null };
