@@ -10,13 +10,10 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { computeDeterministicLayout, SpanInput } from "@/lib/layout";
+import { agentColor } from "@/lib/palette";
+import { AgentEdge } from "@/components/agent-edge";
+import { SpanNode } from "@/components/span-node";
 import { useTraceLayout } from "@/lib/use-trace-layout";
-
-type LaneBand = {
-  locationId: string;
-  y: number;
-};
 
 type Props = {
   spans: SpanInput[];
@@ -24,22 +21,20 @@ type Props = {
   laneHeight?: number;
 };
 
-function computeLaneBands(
-  spans: SpanInput[],
-  laneHeight: number,
-): LaneBand[] {
-  const { spans: positioned } = computeDeterministicLayout(spans);
+type TimelineTick = { x: number; label: string };
 
-  const byLocation = new Map<string, number>();
-  for (const span of positioned) {
-    byLocation.set(span.location_id, Math.max(byLocation.get(span.location_id) ?? -1, span.lane));
+function buildTimeline(spans: SpanInput[], ppu: number): TimelineTick[] {
+  if (spans.length === 0) return [];
+  const min = Math.min(...spans.map((s) => s.start_time));
+  const max = Math.max(...spans.map((s) => s.end_time));
+  const range = Math.max(max - min, 1);
+  const step = Math.max(Math.floor(range / 6), 1);
+  const ticks: TimelineTick[] = [];
+  for (let t = min; t <= max + step; t += step) {
+    const ms = (t - min) / 1000;
+    ticks.push({ x: (t - min) * ppu, label: `${ms.toFixed(0)} ms` });
   }
-
-  const bands: LaneBand[] = [];
-  for (const [locationId, maxLane] of byLocation) {
-    bands.push({ locationId, y: (maxLane + 1) * laneHeight });
-  }
-  return bands.sort((a, b) => a.y - b.y);
+  return ticks;
 }
 
 export function TraceCanvas({
@@ -47,26 +42,64 @@ export function TraceCanvas({
   pixelsPerMicrosecond = 0.0001,
   laneHeight = 80,
 }: Props) {
-  const { nodes, edges } = useTraceLayout(spans, {
+  const { nodes, edges, bands } = useTraceLayout(spans, {
     pixelsPerMicrosecond,
     laneHeight,
   });
 
-  const bands = useMemo(
-    () => computeLaneBands(spans, laneHeight),
-    [spans, laneHeight],
+  const timelineTicks = useMemo(
+    () => buildTimeline(spans, pixelsPerMicrosecond),
+    [spans, pixelsPerMicrosecond],
   );
 
+  const nodeTypes = useMemo(() => ({ spanNode: SpanNode }), []);
+  const edgeTypes = useMemo(() => ({ agentEdge: AgentEdge }), []);
+
   return (
-    <div className="h-[600px] w-full rounded-xl border border-slate-200 bg-white">
+    <div className="relative h-[640px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="pointer-events-none absolute inset-x-6 top-4 z-20 flex items-center gap-4 text-xs text-slate-500">
+        <div className="flex items-center gap-2">
+          {["alice", "bob", "charlie"].map((a) => (
+            <span key={a} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2 py-1">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: agentColor(a).base }}
+              />
+              {a}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 top-12 z-10 h-8 border-b border-slate-200 bg-gradient-to-b from-white via-white to-transparent px-6">
+        <div className="relative h-full">
+          {timelineTicks.map((tick, idx) => (
+            <div
+              key={`${tick.label}-${idx}`}
+              className="absolute top-0 flex flex-col items-center text-[11px] text-slate-500"
+              style={{ left: `${tick.x}px` }}
+            >
+              <div className="h-2 w-[1px] bg-slate-300" />
+              <span className="mt-1 whitespace-nowrap">{tick.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        edgeOptions={{ type: "agentEdge" }}
         nodesDraggable={false}
         nodesConnectable={false}
         zoomOnScroll
         panOnDrag
         fitView
+        fitViewOptions={{ padding: 0.2 }}
+        proOptions={{ hideAttribution: true }}
+        className="pt-12"
       >
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
         <MiniMap pannable zoomable />
@@ -75,16 +108,20 @@ export function TraceCanvas({
         {bands.map((band, idx) => (
           <div
             key={band.locationId}
-            className="pointer-events-none absolute left-0 right-0"
+            className="pointer-events-none absolute left-0 right-0 flex items-center"
             style={{
-              top: band.y - laneHeight,
-              height: laneHeight,
+              top: band.startLane * laneHeight + 48,
+              height: band.laneCount * laneHeight,
               backgroundColor: idx % 2 === 0 ? "#f8fafc" : "#eef2ff",
               borderTop: "1px solid #e2e8f0",
               borderBottom: "1px solid #e2e8f0",
             }}
             aria-hidden
-          />
+          >
+            <span className="ml-2 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm ring-1 ring-slate-200">
+              {band.locationId}
+            </span>
+          </div>
         ))}
       </ReactFlow>
     </div>

@@ -19,10 +19,23 @@ const sortKey = (span: SpanInput) => [
   span.id,
 ];
 
-type PositionedSpan = SpanInput & { lane: number };
+type PositionedSpan = SpanInput & {
+  /** Global lane index (includes location offset). */
+  lane: number;
+  /** Lane index within its location group. */
+  laneLocal: number;
+  locationOffset: number;
+};
+
+export type LocationBand = {
+  locationId: string;
+  startLane: number;
+  laneCount: number;
+};
 
 export type LayoutResult = {
   spans: PositionedSpan[];
+  bands: LocationBand[];
 };
 
 /**
@@ -39,8 +52,10 @@ export function computeDeterministicLayout(input: SpanInput[]): LayoutResult {
   }
 
   const positioned: PositionedSpan[] = [];
+  const bands: LocationBand[] = [];
 
   const sortedLocations = Array.from(byLocation.keys()).sort();
+  let baseLane = 0;
 
   for (const locationId of sortedLocations) {
     const spans = byLocation.get(locationId)!;
@@ -55,6 +70,7 @@ export function computeDeterministicLayout(input: SpanInput[]): LayoutResult {
     });
 
     const laneEndTimes: number[] = [];
+    let maxLocalLane = -1;
 
     for (const span of spans) {
       let lane = laneEndTimes.findIndex((end) => end <= span.start_time);
@@ -64,12 +80,26 @@ export function computeDeterministicLayout(input: SpanInput[]): LayoutResult {
       } else {
         laneEndTimes[lane] = span.end_time;
       }
+      maxLocalLane = Math.max(maxLocalLane, lane);
 
-      positioned.push({ ...span, lane });
+      positioned.push({
+        ...span,
+        lane: baseLane + lane,
+        laneLocal: lane,
+        locationOffset: baseLane,
+      });
     }
+
+    bands.push({
+      locationId,
+      startLane: baseLane,
+      laneCount: maxLocalLane + 1,
+    });
+
+    baseLane += maxLocalLane + 1;
   }
 
-  return { spans: positioned };
+  return { spans: positioned, bands };
 }
 
 export type FlowNode = {
@@ -101,8 +131,8 @@ type FlowOptions = {
 export function layoutToFlow(
   spans: SpanInput[],
   options: FlowOptions = {},
-): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  const { spans: positioned } = computeDeterministicLayout(spans);
+): { nodes: FlowNode[]; edges: FlowEdge[]; bands: LocationBand[] } {
+  const { spans: positioned, bands } = computeDeterministicLayout(spans);
   const ppu = options.pixelsPerMicrosecond ?? 0.0001;
   const laneHeight = options.laneHeight ?? 80;
 
@@ -118,7 +148,7 @@ export function layoutToFlow(
         lane: span.lane,
         duration: span.end_time - span.start_time,
       },
-      type: "default",
+      type: "spanNode",
     };
   });
 
@@ -154,5 +184,5 @@ export function layoutToFlow(
     }
   }
 
-  return { nodes, edges };
+  return { nodes, edges, bands };
 }

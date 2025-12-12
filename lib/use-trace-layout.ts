@@ -10,4 +10,3 @@ type Options = {
 export function useTraceLayout(spans: SpanInput[], options: Options = {}) {
   return useMemo(() => layoutToFlow(spans, options), [spans, options]);
 }
-
