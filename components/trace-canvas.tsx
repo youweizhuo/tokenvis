@@ -19,6 +19,7 @@ type Props = {
   spans: SpanInput[];
   pixelsPerMicrosecond?: number;
   laneHeight?: number;
+  onNodeSelect?: (id: string | null, span: SpanInput | null) => void;
 };
 
 type TimelineTick = { x: number; label: string };
@@ -41,6 +42,7 @@ export function TraceCanvas({
   spans,
   pixelsPerMicrosecond = 0.0001,
   laneHeight = 80,
+  onNodeSelect,
 }: Props) {
   const { nodes, edges, bands, minStart, maxEnd } = useTraceLayout(spans, {
     pixelsPerMicrosecond,
@@ -96,6 +98,7 @@ export function TraceCanvas({
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: "agentEdge" }}
+        defaultNodesSelectable
         nodesDraggable={false}
         nodesConnectable={false}
         zoomOnScroll
@@ -111,6 +114,10 @@ export function TraceCanvas({
         onMove={(_, vp) => {
           setZoom(vp.zoom);
           setPan({ x: vp.x, y: vp.y });
+        }}
+        onNodeClick={(_, node) => {
+          const span = (node.data as { span?: SpanInput })?.span;
+          onNodeSelect?.(node.id, span ?? null);
         }}
       >
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} />

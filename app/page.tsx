@@ -1,4 +1,4 @@
-import { TraceViewerShell } from "@/components/trace-viewer-shell";
+import { TraceViewer } from "@/components/trace-viewer";
 import { loadKitchenSinkTrace } from "./trace-loader";
 
 export default async function Home() {
@@ -6,7 +6,7 @@ export default async function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center bg-slate-50 px-6 py-12 text-slate-900">
-      <TraceViewerShell traceName={trace?.name ?? null} spans={spans} error={error} />
+      <TraceViewer traceName={trace?.name ?? null} spans={spans} error={error} />
     </main>
   );
 }
