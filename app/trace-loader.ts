@@ -3,12 +3,14 @@ import { eq } from "drizzle-orm";
 import { spans, traces } from "@/db/schema";
 import { db } from "@/db";
 
-export async function loadKitchenSinkTrace() {
+const DEFAULT_TRACE_ID = "kitchen-sink";
+
+export async function loadTraceById(traceId: string = DEFAULT_TRACE_ID) {
   try {
     const trace = await db
       .select()
       .from(traces)
-      .where(eq(traces.id, "kitchen-sink"));
+      .where(eq(traces.id, traceId));
 
     if (trace.length === 0) {
       return { trace: null, spans: [], error: null };
@@ -25,7 +27,7 @@ export async function loadKitchenSinkTrace() {
         data: spans.data,
       })
       .from(spans)
-      .where(eq(spans.traceId, "kitchen-sink"))
+      .where(eq(spans.traceId, traceId))
       .orderBy(spans.startTime);
 
     return { trace: trace[0], spans: spanRows, error: null };
@@ -33,4 +35,9 @@ export async function loadKitchenSinkTrace() {
     console.error("Failed to load trace", error);
     return { trace: null, spans: [], error: "Failed to load trace data" };
   }
+}
+
+/** @deprecated Use loadTraceById instead */
+export async function loadKitchenSinkTrace() {
+  return loadTraceById(DEFAULT_TRACE_ID);
 }
