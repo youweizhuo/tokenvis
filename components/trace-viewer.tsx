@@ -20,7 +20,6 @@ export function TraceViewer({ traceName, spans, error }: Props) {
   const [rightOpen, setRightOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedSpan, setSelectedSpan] = useState<SpanInput | null>(null);
-  const [showMinimap, setShowMinimap] = useState(true);
 
   const agentIds = useMemo(() => {
     return Array.from(new Set(spans.map((s) => s.agent_id)));
@@ -99,51 +98,6 @@ export function TraceViewer({ traceName, spans, error }: Props) {
                   </label>
                 ))}
               </div>
-
-              <div className="space-y-2 text-sm text-slate-600">
-                <div className="text-xs font-semibold uppercase text-slate-500">
-                  Time Range
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  className="w-full accent-slate-400"
-                  onChange={() => {}}
-                />
-                <p className="text-xs text-slate-500">
-                  (Placeholder slider; hook to time window later)
-                </p>
-              </div>
-
-              <div className="space-y-1 text-sm text-slate-600">
-                <div className="text-xs font-semibold uppercase text-slate-500">
-                  Style Preset
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline">
-                    Pastel
-                  </Button>
-                  <Button size="sm" variant="ghost">
-                    High contrast
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-sm text-slate-600">
-                <div className="text-xs font-semibold uppercase text-slate-500">
-                  Display Options
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-slate-300 cursor-pointer"
-                    checked={showMinimap}
-                    onChange={(e) => setShowMinimap(e.target.checked)}
-                  />
-                  <span>Show Minimap</span>
-                </label>
-              </div>
             </CardContent>
           </Card>
         </aside>
@@ -156,7 +110,6 @@ export function TraceViewer({ traceName, spans, error }: Props) {
           onNodeSelect={onNodeSelect}
           leftOpen={leftOpen}
           onLeftToggle={() => setLeftOpen(true)}
-          showMinimap={showMinimap}
         />
       </main>
 
