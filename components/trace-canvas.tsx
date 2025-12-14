@@ -59,18 +59,18 @@ function TraceCanvasInner({
   // Time scale state for horizontal-only zoom (like DevTools/Perfetto)
   const [timeScale, setTimeScale] = useState(initialPpu);
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
   // Controlled viewport to prevent auto-centering
   // Start with x offset to show swimlane labels in gutter
   const [viewport, setViewport] = useState<Viewport>({ x: layout.gutterWidth, y: 0, zoom: 1 });
   const hasInitialized = useRef(false);
-  
+
   // Handle viewport changes from user panning
   // Lock Y at 0 and zoom at 1 - only allow horizontal (X) panning
   const handleViewportChange = useCallback((newViewport: Viewport) => {
     setViewport({ x: newViewport.x, y: 0, zoom: 1 });
   }, []);
-  
+
   // Force viewport to show gutter after React Flow initializes
   const handleInit = useCallback(() => {
     // Small delay to let React Flow finish its internal setup
@@ -79,7 +79,7 @@ function TraceCanvasInner({
       hasInitialized.current = true;
     }, 50);
   }, []);
-  
+
   // Zoom bounds for time scale
   const minTimeScale = initialPpu * zoomConfig.minZoom;
   const maxTimeScale = initialPpu * zoomConfig.maxZoom;
@@ -131,7 +131,7 @@ function TraceCanvasInner({
     setTimeScale((prev) => {
       const factor = delta > 0 ? 1.15 : 0.87; // ~15% zoom per step
       const newScale = Math.min(maxTimeScale, Math.max(minTimeScale, prev * factor));
-      
+
       // Adjust viewport.x to zoom toward mouse position
       if (clientX !== undefined && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -139,10 +139,10 @@ function TraceCanvasInner({
         const worldXAtMouse = (mouseXInContainer - viewport.x) / prev;
         const newWorldX = worldXAtMouse * newScale;
         const newViewportX = mouseXInContainer - newWorldX;
-        
+
         setViewport((v) => ({ ...v, x: newViewportX }));
       }
-      
+
       onTimeScaleChange?.(newScale);
       return newScale;
     });
@@ -232,7 +232,7 @@ function TraceCanvasInner({
   const zoomPercentage = Math.round((timeScale / initialPpu) * 100);
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="relative h-full min-h-[640px] w-full overflow-hidden border border-slate-200 bg-white shadow-sm"
       onWheel={handleWheel}
