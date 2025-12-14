@@ -9,6 +9,7 @@ import {
   Panel,
   ViewportPortal,
   useReactFlow,
+  PanOnScrollMode,
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -60,7 +61,8 @@ function TraceCanvasInner({
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Controlled viewport to prevent auto-centering
-  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+  // Start with x offset to show swimlane labels in gutter
+  const [viewport, setViewport] = useState<Viewport>({ x: layout.gutterWidth, y: 0, zoom: 1 });
   const hasInitialized = useRef(false);
   
   // Handle viewport changes from user panning
@@ -69,11 +71,11 @@ function TraceCanvasInner({
     setViewport({ x: newViewport.x, y: 0, zoom: 1 });
   }, []);
   
-  // Force viewport to origin after React Flow initializes
+  // Force viewport to show gutter after React Flow initializes
   const handleInit = useCallback(() => {
     // Small delay to let React Flow finish its internal setup
     setTimeout(() => {
-      setViewport({ x: 0, y: 0, zoom: 1 });
+      setViewport({ x: layout.gutterWidth, y: 0, zoom: 1 });
       hasInitialized.current = true;
     }, 50);
   }, []);
@@ -158,11 +160,11 @@ function TraceCanvasInner({
 
   // Zoom controls
   const handleFitToTrace = useCallback(() => {
-    // Reset time scale and viewport to origin (no fitView to avoid Y centering)
+    // Reset time scale and viewport to show gutter
     setTimeScale(initialPpu);
     onTimeScaleChange?.(initialPpu);
-    setViewport({ x: 0, y: 0, zoom: 1 });
-  }, [initialPpu, onTimeScaleChange]);
+    setViewport({ x: gutterWidth, y: 0, zoom: 1 });
+  }, [initialPpu, onTimeScaleChange, gutterWidth]);
 
   const handleFitToSelection = useCallback(() => {
     const selectedNodes = reactFlow.getNodes().filter((n) => n.selected);
@@ -192,8 +194,8 @@ function TraceCanvasInner({
   const handleResetZoom = useCallback(() => {
     setTimeScale(initialPpu);
     onTimeScaleChange?.(initialPpu);
-    setViewport({ x: 0, y: 0, zoom: 1 });
-  }, [initialPpu, onTimeScaleChange]);
+    setViewport({ x: gutterWidth, y: 0, zoom: 1 });
+  }, [initialPpu, onTimeScaleChange, gutterWidth]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -235,14 +237,15 @@ function TraceCanvasInner({
       className="relative h-full min-h-[640px] w-full overflow-hidden border border-slate-200 bg-white shadow-sm"
       onWheel={handleWheel}
     >
-      <div className="absolute inset-x-0 top-0 z-20 h-10 border-b border-slate-200 bg-white/90 backdrop-blur-sm px-6 pointer-events-none">
+      <div className="absolute inset-x-0 top-0 z-20 h-10 border-b border-slate-200 bg-white/90 backdrop-blur-sm pointer-events-none">
         <div className="relative h-full">
           {timelineTicks.map((tick, idx) => {
+            // Align tick with React Flow coordinate system: tick.x is world position, viewport.x is pan offset
             const left = tick.x + viewport.x;
             return (
               <div
                 key={`tick-${tick.x}-${idx}`}
-                className="absolute top-0 flex flex-col items-center text-[11px] text-slate-500"
+                className="absolute top-0 flex flex-col items-start text-[11px] text-slate-500"
                 style={{ left: `${left}px` }}
               >
                 <div className="h-2 w-[1px] bg-slate-300" />
@@ -266,7 +269,7 @@ function TraceCanvasInner({
         zoomOnDoubleClick={false}
         panOnDrag
         panOnScroll
-        panOnScrollMode="free"
+        panOnScrollMode={PanOnScrollMode.Free}
         viewport={viewport}
         onViewportChange={handleViewportChange}
         onInit={handleInit}
