@@ -60,11 +60,3 @@ The left panel SHALL include TokenVis name, active trace name, and agent filters
 
 - **WHEN** the left panel renders
 - **THEN** there are no placeholder sliders, disabled buttons, or minimap toggles visible.
-
-## REMOVED Requirements
-
-### Requirement: Minimap toggle in left panel
-
-**Reason**: Minimap feature was removed in a previous change; the toggle control is no longer needed.
-
-**Migration**: Remove the `showMinimap` state and checkbox from the left panel.
