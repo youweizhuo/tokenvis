@@ -17,9 +17,10 @@ type Props = {
 
 export function TraceViewer({ traceName, spans, error }: Props) {
   const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedSpan, setSelectedSpan] = useState<SpanInput | null>(null);
+  const [showMinimap, setShowMinimap] = useState(true);
 
   const agentIds = useMemo(() => {
     return Array.from(new Set(spans.map((s) => s.agent_id)));
@@ -128,6 +129,21 @@ export function TraceViewer({ traceName, spans, error }: Props) {
                   </Button>
                 </div>
               </div>
+
+              <div className="space-y-2 text-sm text-slate-600">
+                <div className="text-xs font-semibold uppercase text-slate-500">
+                  Display Options
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 cursor-pointer"
+                    checked={showMinimap}
+                    onChange={(e) => setShowMinimap(e.target.checked)}
+                  />
+                  <span>Show Minimap</span>
+                </label>
+              </div>
             </CardContent>
           </Card>
         </aside>
@@ -140,6 +156,7 @@ export function TraceViewer({ traceName, spans, error }: Props) {
           onNodeSelect={onNodeSelect}
           leftOpen={leftOpen}
           onLeftToggle={() => setLeftOpen(true)}
+          showMinimap={showMinimap}
         />
       </main>
 

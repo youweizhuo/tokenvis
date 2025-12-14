@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defaultCanvasConfig } from "./canvas-config";
 
 export const spanInputSchema = z.object({
   id: z.string().min(1),
@@ -150,20 +151,21 @@ export function layoutToFlow(
 } {
   const { spans: positioned, bands, minStart, maxEnd } =
     computeDeterministicLayout(spans);
-  const ppu = options.pixelsPerMicrosecond ?? 0.0001;
-  const laneHeight = options.laneHeight ?? 80;
+  const { layout, node } = defaultCanvasConfig;
+  const ppu = options.pixelsPerMicrosecond ?? layout.pixelsPerMicrosecond;
+  const laneHeight = options.laneHeight ?? layout.laneHeight;
 
   const nodes: FlowNode[] = positioned.map((span) => {
-    const width = Math.max((span.end_time - span.start_time) * ppu, 12);
+    const width = Math.max((span.end_time - span.start_time) * ppu, node.nodeMinWidth);
     return {
       id: `span-${span.id}`,
       position: {
         x: span.start_time * ppu,
-        y: span.lane * laneHeight,
+        y: span.lane * laneHeight + node.laneTopMargin,
       },
       style: {
         width,
-        height: Math.max(laneHeight * 0.72, 36),
+        height: Math.max(laneHeight * node.nodeHeightRatio, node.nodeMinHeight),
       },
       data: {
         span,

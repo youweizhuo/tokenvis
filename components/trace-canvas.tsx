@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
   Background,
   BackgroundVariant,
-  Controls,
-  MiniMap,
+  Panel,
   ViewportPortal,
-  useViewport,
+  useReactFlow,
+  type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -18,7 +18,8 @@ import { SpanNode } from "@/components/span-node";
 import { Button } from "@/components/ui/button";
 import { SpanInput } from "@/lib/layout";
 import { useTraceLayout } from "@/lib/use-trace-layout";
-import { ChevronRight } from "lucide-react";
+import { defaultCanvasConfig } from "@/lib/canvas-config";
+import { ChevronRight, Maximize, Minus, Plus, RotateCcw } from "lucide-react";
 
 type Props = {
   spans: SpanInput[];
@@ -27,11 +28,14 @@ type Props = {
   onNodeSelect?: (id: string | null, span: SpanInput | null) => void;
   leftOpen?: boolean;
   onLeftToggle?: () => void;
+  onTimeScaleChange?: (ppu: number) => void;
 };
 
 type TimelineTick = { x: number; label: string };
 
-function buildTimeline(rangeUs: number, ppu: number, desiredTicks = 6): TimelineTick[] {
+const { layout, zoom: zoomConfig, extent, timeline, background } = defaultCanvasConfig;
+
+function buildTimeline(rangeUs: number, ppu: number, desiredTicks = timeline.desiredTimelineTicks): TimelineTick[] {
   if (rangeUs <= 0) return [];
   const step = Math.max(Math.floor(rangeUs / desiredTicks), 1);
   const ticks: TimelineTick[] = [];
@@ -44,24 +48,55 @@ function buildTimeline(rangeUs: number, ppu: number, desiredTicks = 6): Timeline
 
 function TraceCanvasInner({
   spans,
-  pixelsPerMicrosecond = 0.0001,
-  laneHeight = 80,
+  pixelsPerMicrosecond: initialPpu = layout.pixelsPerMicrosecond,
+  laneHeight = layout.laneHeight,
   onNodeSelect,
   leftOpen = true,
   onLeftToggle,
+  onTimeScaleChange,
 }: Props) {
+  // Time scale state for horizontal-only zoom (like DevTools/Perfetto)
+  const [timeScale, setTimeScale] = useState(initialPpu);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Controlled viewport to prevent auto-centering
+  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+  const hasInitialized = useRef(false);
+  
+  // Handle viewport changes from user panning
+  // Lock Y at 0 and zoom at 1 - only allow horizontal (X) panning
+  const handleViewportChange = useCallback((newViewport: Viewport) => {
+    setViewport({ x: newViewport.x, y: 0, zoom: 1 });
+  }, []);
+  
+  // Force viewport to origin after React Flow initializes
+  const handleInit = useCallback(() => {
+    // Small delay to let React Flow finish its internal setup
+    setTimeout(() => {
+      setViewport({ x: 0, y: 0, zoom: 1 });
+      hasInitialized.current = true;
+    }, 50);
+  }, []);
+  
+  // Zoom bounds for time scale
+  const minTimeScale = initialPpu * zoomConfig.minZoom;
+  const maxTimeScale = initialPpu * zoomConfig.maxZoom;
+
   const { nodes, edges, bands, minStart, maxEnd } = useTraceLayout(spans, {
-    pixelsPerMicrosecond,
+    pixelsPerMicrosecond: timeScale,
     laneHeight,
   });
 
-  const viewport = useViewport();
-  const headerOffset = 40;
-  const gutterWidth = 120;
+  const reactFlow = useReactFlow();
+  const headerOffset = layout.headerOffset;
+  const gutterWidth = layout.gutterWidth;
 
   const traceDurationUs = Math.max(maxEnd - minStart, 1);
-  const worldWidth = Math.max(traceDurationUs * pixelsPerMicrosecond * 10, 4000); // 10x larger for infinite scroll
-  const extentMin = { x: -gutterWidth, y: 0 }; // Gutter left of x=0, no vertical padding
+  const worldWidth = Math.max(
+    traceDurationUs * timeScale * extent.worldWidthMultiplier,
+    extent.minWorldWidth
+  );
+  const extentMin = { x: -gutterWidth, y: 0 };
 
   const maxLaneIndex =
     bands.length === 0
@@ -74,8 +109,8 @@ function TraceCanvasInner({
   };
 
   const timelineTicks = useMemo(() => {
-    return buildTimeline(traceDurationUs, pixelsPerMicrosecond, 7);
-  }, [traceDurationUs, pixelsPerMicrosecond]);
+    return buildTimeline(traceDurationUs, timeScale);
+  }, [traceDurationUs, timeScale]);
 
   const shiftedNodes = useMemo(
     () =>
@@ -89,12 +124,121 @@ function TraceCanvasInner({
   const nodeTypes = useMemo(() => ({ spanNode: SpanNode }), []);
   const edgeTypes = useMemo(() => ({ agentEdge: AgentEdge }), []);
 
+  // Horizontal-only zoom: change time scale, keep lane heights fixed
+  const handleHorizontalZoom = useCallback((delta: number, clientX?: number) => {
+    setTimeScale((prev) => {
+      const factor = delta > 0 ? 1.15 : 0.87; // ~15% zoom per step
+      const newScale = Math.min(maxTimeScale, Math.max(minTimeScale, prev * factor));
+      
+      // Adjust viewport.x to zoom toward mouse position
+      if (clientX !== undefined && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const mouseXInContainer = clientX - rect.left;
+        const worldXAtMouse = (mouseXInContainer - viewport.x) / prev;
+        const newWorldX = worldXAtMouse * newScale;
+        const newViewportX = mouseXInContainer - newWorldX;
+        
+        setViewport((v) => ({ ...v, x: newViewportX }));
+      }
+      
+      onTimeScaleChange?.(newScale);
+      return newScale;
+    });
+  }, [maxTimeScale, minTimeScale, viewport.x, onTimeScaleChange]);
+
+  // Custom wheel handler for horizontal zoom
+  const handleWheel = useCallback((event: React.WheelEvent) => {
+    // Only horizontal zoom on Ctrl/Cmd + scroll, otherwise let React Flow pan
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      handleHorizontalZoom(-event.deltaY, event.clientX);
+    }
+  }, [handleHorizontalZoom]);
+
+  // Zoom controls
+  const handleFitToTrace = useCallback(() => {
+    // Reset time scale and viewport to origin (no fitView to avoid Y centering)
+    setTimeScale(initialPpu);
+    onTimeScaleChange?.(initialPpu);
+    setViewport({ x: 0, y: 0, zoom: 1 });
+  }, [initialPpu, onTimeScaleChange]);
+
+  const handleFitToSelection = useCallback(() => {
+    const selectedNodes = reactFlow.getNodes().filter((n) => n.selected);
+    if (selectedNodes.length > 0) {
+      // Calculate X position to center selection horizontally, keep Y at 0
+      const bounds = selectedNodes.reduce(
+        (acc, node) => ({
+          minX: Math.min(acc.minX, node.position.x),
+          maxX: Math.max(acc.maxX, node.position.x + (node.measured?.width ?? 100)),
+        }),
+        { minX: Infinity, maxX: -Infinity }
+      );
+      const centerX = (bounds.minX + bounds.maxX) / 2;
+      const containerWidth = containerRef.current?.getBoundingClientRect().width ?? 800;
+      setViewport({ x: containerWidth / 2 - centerX, y: 0, zoom: 1 });
+    }
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    handleHorizontalZoom(1);
+  }, [handleHorizontalZoom]);
+
+  const handleZoomOut = useCallback(() => {
+    handleHorizontalZoom(-1);
+  }, [handleHorizontalZoom]);
+
+  const handleResetZoom = useCallback(() => {
+    setTimeScale(initialPpu);
+    onTimeScaleChange?.(initialPpu);
+    setViewport({ x: 0, y: 0, zoom: 1 });
+  }, [initialPpu, onTimeScaleChange]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key) {
+        case "0":
+          handleFitToTrace();
+          break;
+        case "=":
+        case "+":
+          handleZoomIn();
+          break;
+        case "-":
+          handleZoomOut();
+          break;
+        case "f":
+          if (!e.metaKey && !e.ctrlKey) {
+            handleFitToSelection();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleFitToTrace, handleFitToSelection, handleZoomIn, handleZoomOut]);
+
+  // Calculate zoom percentage based on time scale
+  const zoomPercentage = Math.round((timeScale / initialPpu) * 100);
+
   return (
-    <div className="relative h-full min-h-[640px] w-full overflow-hidden border border-slate-200 bg-white shadow-sm">
+    <div 
+      ref={containerRef}
+      className="relative h-full min-h-[640px] w-full overflow-hidden border border-slate-200 bg-white shadow-sm"
+      onWheel={handleWheel}
+    >
       <div className="absolute inset-x-0 top-0 z-20 h-10 border-b border-slate-200 bg-white/90 backdrop-blur-sm px-6 pointer-events-none">
         <div className="relative h-full">
           {timelineTicks.map((tick, idx) => {
-            const left = tick.x * viewport.zoom + viewport.x;
+            const left = tick.x + viewport.x;
             return (
               <div
                 key={`tick-${tick.x}-${idx}`}
@@ -117,12 +261,17 @@ function TraceCanvasInner({
         defaultEdgeOptions={{ type: "agentEdge" }}
         nodesDraggable={false}
         nodesConnectable={false}
-        zoomOnScroll
+        zoomOnScroll={false}
+        zoomOnPinch={false}
+        zoomOnDoubleClick={false}
         panOnDrag
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.25}
-        maxZoom={2.5}
+        panOnScroll
+        panOnScrollMode="free"
+        viewport={viewport}
+        onViewportChange={handleViewportChange}
+        onInit={handleInit}
+        minZoom={1}
+        maxZoom={1}
         translateExtent={[
           [extentMin.x, extentMin.y],
           [extentMax.x, extentMax.y],
@@ -134,9 +283,51 @@ function TraceCanvasInner({
           onNodeSelect?.(node.id, span ?? null);
         }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-        <MiniMap pannable zoomable />
-        <Controls showInteractive={false} />
+        <Background variant={BackgroundVariant.Dots} gap={background.backgroundGap} size={1} />
+
+        {/* Horizontal zoom controls (DevTools/Perfetto style) */}
+        <Panel position="bottom-left" className="flex items-center gap-1 rounded-md bg-white/95 p-1 shadow-md ring-1 ring-slate-200 backdrop-blur-sm">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleZoomOut}
+            className="h-7 w-7 p-0"
+            title="Zoom out time axis (-)"
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
+          <span className="min-w-[3.5rem] text-center text-xs font-medium text-slate-600" title="Time scale (Ctrl/Cmd + scroll to adjust)">
+            {zoomPercentage}%
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleZoomIn}
+            className="h-7 w-7 p-0"
+            title="Zoom in time axis (+)"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          <div className="mx-1 h-4 w-px bg-slate-200" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleResetZoom}
+            className="h-7 w-7 p-0"
+            title="Reset zoom"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleFitToTrace}
+            className="h-7 w-7 p-0"
+            title="Fit to trace (0)"
+          >
+            <Maximize className="h-3.5 w-3.5" />
+          </Button>
+        </Panel>
 
         <ViewportPortal>
           <div className="pointer-events-none absolute left-0 top-0 -z-10">

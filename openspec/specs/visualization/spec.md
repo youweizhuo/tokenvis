@@ -46,25 +46,36 @@ The viewer SHALL display a timeline bar with ticks/labels synchronized to the pi
 - **THEN** the first swimlane starts at y=0 (or timeline header height) with no additional vertical padding or blank space between the timeline ruler and the first lane.
 
 ### Requirement: Timeline aligned with zoom
-The timeline bar SHALL remain fixed at the top while its ticks are positioned by projecting world time coordinates through the current viewport transform (x, y, zoom) so they stay aligned with span start/end positions without double scaling.
+
+The timeline bar SHALL remain fixed at the top while its ticks are positioned by projecting world time coordinates through the current horizontal zoom transform so they stay aligned with span start/end positions.
 
 #### Scenario: Zoomed timeline
-- **WHEN** the user zooms in or out or pans the canvas
-- **THEN** timeline ticks stay aligned to span nodes within ≤0.5px drift because tick positions use the viewport transform, and the ruler origin remains at time 0 after fitView or translateExtent adjustments.
+
+- **WHEN** the user zooms horizontally or pans the canvas
+- **THEN** timeline ticks stay aligned to span nodes within ≤0.5px drift because tick positions use the time scale transform, and the ruler origin remains at time 0.
 
 ### Requirement: Duration-proportional nodes under zoom
-Node widths SHALL stay proportional to span durations at any zoom level (no squashing/stretching artifacts).
 
-#### Scenario: Proportional width
-- **WHEN** zoom changes
-- **THEN** node widths still reflect `(end_time - start_time)` at the scaled pixel-per-microsecond ratio.
+Node widths SHALL scale proportionally with horizontal zoom (time scale), while node heights remain fixed at the configured lane height ratio regardless of zoom level.
+
+#### Scenario: Horizontal zoom scaling
+
+- **WHEN** horizontal time scale changes (via Ctrl/Cmd+scroll or zoom buttons)
+- **THEN** node widths scale proportionally with the time scale, reflecting `(end_time - start_time)` at the current `pixelsPerMicrosecond` value.
+
+#### Scenario: Fixed height under zoom
+
+- **WHEN** horizontal zoom changes
+- **THEN** node heights remain constant at their configured size (e.g., 80% of lane height), not scaling with zoom.
 
 ### Requirement: Lanes stay bound to spans
-Swimlane bands SHALL render in the same viewport as nodes (e.g., via `ViewportPortal`) and apply the full x/y zoom transform so spans and lane backgrounds move and scale together.
+
+Swimlane bands SHALL render in the same viewport as nodes with fixed heights regardless of zoom, so spans scale horizontally with time while lane heights remain constant.
 
 #### Scenario: Lane alignment on pan/zoom
-- **WHEN** the user pans or zooms
-- **THEN** each lane background translates and scales with nodes on both axes, and lane labels stay within their bands.
+
+- **WHEN** the user pans or zooms horizontally
+- **THEN** each lane background extends horizontally with zoom but maintains fixed height, and lane labels stay within their bands at fixed vertical positions.
 
 ### Requirement: Three-panel responsive layout
 The viewer SHALL present a three-panel layout: left controls panel (collapsible), center canvas, and right details panel (collapsible).
@@ -168,4 +179,76 @@ The viewport SHALL clamp vertical panning to the total lane height and allow hor
 
 - **WHEN** the user pans horizontally to the left
 - **THEN** the viewport stops at the left gutter boundary (e.g., x=-120) to keep location labels visible, and panning cannot move further left than this gutter.
+
+### Requirement: Horizontal-only zoom (DevTools/Perfetto style)
+
+The canvas SHALL zoom horizontally only by default (time axis), keeping swimlane heights fixed so users can focus on time-based exploration without vertical dimension changes.
+
+#### Scenario: Ctrl/Cmd + mouse wheel zoom
+
+- **WHEN** the user holds Ctrl/Cmd and scrolls the mouse wheel
+- **THEN** only the horizontal (time) axis scales via `pixelsPerMicrosecond` change, swimlane heights remain constant, and span nodes widen or narrow proportionally.
+
+#### Scenario: Zoom toward mouse position
+
+- **WHEN** the user zooms with Ctrl/Cmd+scroll
+- **THEN** the zoom is centered on the mouse position along the time axis, keeping the time under the cursor stationary.
+
+#### Scenario: Regular scroll for panning
+
+- **WHEN** the user scrolls without modifier keys
+- **THEN** the canvas pans in the scroll direction, not zooming.
+
+#### Scenario: Fit to Trace
+
+- **WHEN** the user clicks the "Fit to Trace" button or presses `0`
+- **THEN** the time scale resets to default and the viewport resets to show the entire trace.
+
+#### Scenario: Fit to Selection
+
+- **WHEN** the user selects one or more spans and presses `f`
+- **THEN** the viewport zooms and pans to fit the selected nodes' bounding box.
+
+#### Scenario: Zoom bounds
+
+- **WHEN** the user zooms to the minimum or maximum level
+- **THEN** the horizontal zoom is clamped to configured bounds (e.g., 0.25x to 2.5x of default time scale) and further input has no effect.
+
+### Requirement: Centralized canvas configuration
+
+All canvas layout constants SHALL be defined in a single configuration module with typed defaults and optional override capability, eliminating hardcoded magic numbers throughout the codebase.
+
+#### Scenario: Default configuration
+
+- **WHEN** the canvas renders without custom props
+- **THEN** it uses sensible defaults from the centralized config (e.g., laneHeight=80, headerOffset=40, gutterWidth=120).
+
+#### Scenario: Custom configuration
+
+- **WHEN** custom layout values are passed via props
+- **THEN** they override the corresponding defaults from the centralized config, and the canvas renders accordingly.
+
+#### Scenario: Configuration consistency
+
+- **WHEN** layout calculations occur in different modules (trace-canvas.tsx, layout.ts)
+- **THEN** they all reference the same centralized config source, ensuring consistent values across the codebase.
+
+### Requirement: Zoom control UI
+
+The canvas SHALL provide visible zoom controls for explicit viewport manipulation, following accessibility and usability best practices.
+
+#### Scenario: Zoom control panel
+
+- **WHEN** the canvas renders
+- **THEN** a control panel with zoom in/out buttons and fit-to-trace button is visible.
+
+#### Scenario: Zoom level display
+
+- **WHEN** the viewport zoom changes
+- **THEN** the current zoom percentage is displayed in the control panel.
+
+#### Scenario: Keyboard shortcuts
+
+- **WHEN** the user presses zoom-related keyboard shortcuts (e.g., `0` to reset, `+`/`-` to zoom)
+- **THEN** the viewport responds accordingly, matching the button behavior.
 
