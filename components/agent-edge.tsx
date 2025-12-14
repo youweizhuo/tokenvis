@@ -12,7 +12,8 @@ const dash = {
 export function AgentEdge(props: EdgeProps) {
   const [path, labelX, labelY] = getBezierPath(props);
   const { source, data } = props;
-  const agentId = data?.agent_id ?? source.replace("span-", "").split("-")[0];
+  const dataAgentId = typeof data?.agent_id === "string" ? data.agent_id : null;
+  const agentId = dataAgentId ?? source.replace("span-", "").split("-")[0];
   const color = agentColor(agentId).base;
 
   return (

@@ -4,9 +4,15 @@ import { Handle, Position, NodeProps } from "@xyflow/react";
 import React from "react";
 
 import { agentColor, agentGradient } from "@/lib/palette";
+import type { SpanInput } from "@/lib/layout";
+
+type SpanNodeData = {
+  span: SpanInput;
+  lane: number;
+};
 
 export function SpanNode({ data }: NodeProps) {
-  const { span, lane } = data;
+  const { span, lane } = data as SpanNodeData;
   const colors = agentColor(span.agent_id);
   const gradient = agentGradient(span.agent_id);
 
@@ -16,7 +22,7 @@ export function SpanNode({ data }: NodeProps) {
   return (
     <div
       className="group h-full w-full overflow-hidden rounded-sm border px-3 py-1.5 shadow-sm transition-transform duration-150 hover:shadow-md"
-      style={{ 
+      style={{
         borderColor: colors.base,
         background: gradient,
       }}

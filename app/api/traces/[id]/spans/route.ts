@@ -10,11 +10,12 @@ import {
 } from "@/lib/trace-schemas";
 
 type RouteContext = {
-  params: unknown;
+  params: Promise<{ id: string }>;
 };
 
 export async function GET(_request: Request, context: RouteContext) {
-  const paramsResult = traceIdParamSchema.safeParse(context.params);
+  const params = await context.params;
+  const paramsResult = traceIdParamSchema.safeParse(params);
   if (!paramsResult.success) {
     const body = errorSchema.parse({ error: "Invalid trace id" });
     return NextResponse.json(body, { status: 400 });

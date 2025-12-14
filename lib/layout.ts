@@ -13,7 +13,7 @@ export const spanInputSchema = z.object({
 
 export type SpanInput = z.infer<typeof spanInputSchema>;
 
-const sortKey = (span: SpanInput) => [
+const sortKey = (span: SpanInput): (number | string)[] => [
   span.start_time,
   span.end_time,
   span.agent_id,
@@ -68,8 +68,15 @@ export function computeDeterministicLayout(input: SpanInput[]): LayoutResult {
       const ak = sortKey(a);
       const bk = sortKey(b);
       for (let i = 0; i < ak.length; i += 1) {
-        const diff = ak[i] - bk[i];
-        if (diff !== 0) return diff;
+        const aVal = ak[i];
+        const bVal = bk[i];
+        if (typeof aVal === "number" && typeof bVal === "number") {
+          const diff = aVal - bVal;
+          if (diff !== 0) return diff;
+        } else {
+          const diff = String(aVal).localeCompare(String(bVal));
+          if (diff !== 0) return diff;
+        }
       }
       return 0;
     });
@@ -129,6 +136,9 @@ export type FlowEdge = {
   source: string;
   target: string;
   type?: string;
+  data?: {
+    agent_id: string;
+  };
 };
 
 type FlowOptions = {
@@ -190,8 +200,15 @@ export function layoutToFlow(
       const ak = sortKey(a);
       const bk = sortKey(b);
       for (let i = 0; i < ak.length; i += 1) {
-        const diff = ak[i] - bk[i];
-        if (diff !== 0) return diff;
+        const aVal = ak[i];
+        const bVal = bk[i];
+        if (typeof aVal === "number" && typeof bVal === "number") {
+          const diff = aVal - bVal;
+          if (diff !== 0) return diff;
+        } else {
+          const diff = String(aVal).localeCompare(String(bVal));
+          if (diff !== 0) return diff;
+        }
       }
       return 0;
     });
